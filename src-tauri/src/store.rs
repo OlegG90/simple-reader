@@ -15,6 +15,29 @@ pub struct State {
     /// Reading positions keyed by book fingerprint.
     pub positions: HashMap<String, Position>,
     pub window: Option<WindowGeometry>,
+    /// Recently opened books, newest first.
+    pub recent: Vec<RecentBook>,
+}
+
+/// How many books the start screen lists.
+pub const RECENT_LIMIT: usize = 10;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecentBook {
+    pub path: PathBuf,
+    pub title: String,
+    pub author: String,
+    /// Links the entry to its saved position (for "% read").
+    pub fingerprint: String,
+}
+
+impl State {
+    /// Puts a book at the top of the recent list, once, keeping the list short.
+    pub fn remember(&mut self, book: RecentBook) {
+        self.recent.retain(|r| r.path != book.path);
+        self.recent.insert(0, book);
+        self.recent.truncate(RECENT_LIMIT);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -100,6 +123,25 @@ mod tests {
             .unwrap();
         let reloaded = Store::load(path);
         assert_eq!(reloaded.read(|s| s.positions["book"].clone()), position("epubcfi(/6/4)"));
+    }
+
+    #[test]
+    fn recent_list_is_newest_first_without_duplicates() {
+        let book = |path: &str| RecentBook {
+            path: PathBuf::from(path),
+            title: path.into(),
+            author: String::new(),
+            fingerprint: path.into(),
+        };
+        let mut state = State::default();
+        for i in 0..12 {
+            state.remember(book(&format!("{i}.epub")));
+        }
+        state.remember(book("5.epub"));
+        let paths: Vec<_> = state.recent.iter().map(|r| r.path.to_string_lossy().into_owned()).collect();
+        assert_eq!(paths.len(), RECENT_LIMIT);
+        assert_eq!(&paths[..3], ["5.epub", "11.epub", "10.epub"]);
+        assert_eq!(paths.iter().filter(|p| *p == "5.epub").count(), 1);
     }
 
     #[test]

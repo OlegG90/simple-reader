@@ -1,43 +1,117 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-/// What the app was asked to do on launch.
+/// A window to open.
 #[derive(Debug, Default, PartialEq)]
 pub struct Launch {
-    /// The book to open, if any.
+    /// The book to open; `None` shows the start screen.
     pub file: Option<PathBuf>,
+    /// Don't save the reading position (or the recent list) for this window.
+    pub no_save: bool,
 }
 
-/// Parses command-line arguments, without the program name.
-pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Launch {
-    let file = args
-        .into_iter()
-        .find(|arg| !arg.starts_with("--"))
-        .map(PathBuf::from);
-    Launch { file }
+/// What the app was asked to do.
+#[derive(Debug, PartialEq)]
+pub enum Command {
+    Open { launch: Launch, data_dir: Option<PathBuf> },
+    Register,
+    Unregister,
+    Help,
+    Version,
+    /// Bad arguments; the message says why.
+    Invalid(String),
+}
+
+pub const USAGE: &str = "\
+Simple Reader - a minimal e-book reader
+
+Usage:
+  sreader [<file>] [--no-save] [--data-dir <path>]
+  sreader --register | --unregister
+  sreader --help | --version
+
+Options:
+  <file>               Open an .epub, .fb2, .fb2.zip or .md file
+  --no-save            Don't remember the reading position for this window
+  --data-dir <path>    Keep settings and positions in this folder
+  --register           Offer Simple Reader for .epub, .fb2 and .md files (current user)
+  --unregister         Remove what --register added
+  --help, -h           Show this help
+  --version, -V        Show the version";
+
+/// Parses command-line arguments (without the program name). Relative file
+/// paths are resolved against `cwd`, which matters when a second launch is
+/// forwarded to the running app from another folder.
+pub fn parse<I: IntoIterator<Item = String>>(args: I, cwd: &Path) -> Command {
+    let mut launch = Launch::default();
+    let mut data_dir = None;
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--register" => return Command::Register,
+            "--unregister" => return Command::Unregister,
+            "--help" | "-h" | "/?" => return Command::Help,
+            "--version" | "-V" => return Command::Version,
+            "--no-save" => launch.no_save = true,
+            "--data-dir" => match args.next() {
+                Some(dir) => data_dir = Some(cwd.join(dir)),
+                None => return Command::Invalid("--data-dir needs a folder".into()),
+            },
+            _ if arg.starts_with("--data-dir=") => data_dir = Some(cwd.join(&arg["--data-dir=".len()..])),
+            _ if arg.starts_with('-') => return Command::Invalid(format!("Unknown option {arg}")),
+            _ if launch.file.is_some() => return Command::Invalid("Open one file at a time".into()),
+            _ => launch.file = Some(cwd.join(arg)),
+        }
+    }
+    Command::Open { launch, data_dir }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn args(list: &[&str]) -> Vec<String> {
-        list.iter().map(|s| s.to_string()).collect()
+    fn run(list: &[&str]) -> Command {
+        parse(list.iter().map(|s| s.to_string()), Path::new(r"C:\Books"))
+    }
+
+    fn open(file: Option<&str>, no_save: bool, data_dir: Option<&str>) -> Command {
+        Command::Open {
+            launch: Launch { file: file.map(PathBuf::from), no_save },
+            data_dir: data_dir.map(PathBuf::from),
+        }
     }
 
     #[test]
-    fn no_arguments_opens_nothing() {
-        assert_eq!(parse(args(&[])), Launch::default());
+    fn no_arguments_shows_the_start_screen() {
+        assert_eq!(run(&[]), open(None, false, None));
     }
 
     #[test]
-    fn first_positional_argument_is_the_file() {
-        let launch = parse(args(&[r"C:\Books\a b.epub", "other.fb2"]));
-        assert_eq!(launch.file, Some(PathBuf::from(r"C:\Books\a b.epub")));
+    fn a_file_is_resolved_against_the_working_folder() {
+        assert_eq!(run(&["a b.epub"]), open(Some(r"C:\Books\a b.epub"), false, None));
+        assert_eq!(run(&[r"D:\x.fb2"]), open(Some(r"D:\x.fb2"), false, None));
     }
 
     #[test]
-    fn flags_are_not_files() {
-        let launch = parse(args(&["--unknown", "book.epub"]));
-        assert_eq!(launch.file, Some(PathBuf::from("book.epub")));
+    fn options_combine_in_any_order() {
+        assert_eq!(
+            run(&["--no-save", "book.md", "--data-dir", "data"]),
+            open(Some(r"C:\Books\book.md"), true, Some(r"C:\Books\data"))
+        );
+        assert_eq!(run(&[r"--data-dir=E:\cfg"]), open(None, false, Some(r"E:\cfg")));
+    }
+
+    #[test]
+    fn commands_win_over_everything_else() {
+        assert_eq!(run(&["book.epub", "--register"]), Command::Register);
+        assert_eq!(run(&["--unregister"]), Command::Unregister);
+        assert_eq!(run(&["-h"]), Command::Help);
+        assert_eq!(run(&["--version"]), Command::Version);
+    }
+
+    #[test]
+    fn mistakes_are_reported() {
+        assert!(matches!(run(&["--nosave"]), Command::Invalid(m) if m.contains("--nosave")));
+        assert!(matches!(run(&["--data-dir"]), Command::Invalid(_)));
+        assert!(matches!(run(&["a.epub", "b.epub"]), Command::Invalid(_)));
     }
 }
