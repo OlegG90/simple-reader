@@ -26,6 +26,9 @@ interface Book {
 
 interface Renderer extends HTMLElement {
   setStyles?(css: string): void
+  getContents(): { doc: Document }[]
+  /** In scrolled flow: the laid-out content height, including the margins. */
+  readonly viewSize: number
   goTo(target: { index: number; anchor: () => number }): Promise<void>
 }
 
@@ -99,6 +102,21 @@ const BOOK_CSS = `
     display: none;
   }
 `
+
+/** Footnote pop-ups: note headings (often just the note number) stay small. */
+const NOTE_CSS = `${BOOK_CSS}
+  h1, h2, h3, h4, h5, h6 {
+    font-size: 1em !important;
+    text-align: start !important;
+    margin: 0 !important;
+  }
+  .title {
+    margin: 0 0 0.4em !important;
+  }
+`
+const NOTE_MARGIN_PX = 16
+/** The pop-up's border, which box-sizing takes out of its height (see style.css). */
+const NOTE_BORDER_PX = 2
 
 /** Share of the window width that turns pages when clicked. */
 const EDGE_CLICK = 0.2
@@ -246,12 +264,18 @@ export class BookView {
         const { doc } = (ev as CustomEvent<{ doc: Document }>).detail
         doc.addEventListener('keydown', k => this.events.key(k))
       })
+      // The renderer re-lays the note out (and relocates) whenever it reflows;
+      // fit the pop-up to it. CSS max-height caps long notes, which then scroll.
+      note.addEventListener('relocate', () => {
+        this.footnoteHost.style.height = `${Math.ceil(note.renderer.viewSize) + NOTE_BORDER_PX}px`
+      })
       note.renderer.setAttribute('flow', 'scrolled')
-      note.renderer.setAttribute('margin', '16px')
+      note.renderer.setAttribute('margin', `${NOTE_MARGIN_PX}px`)
       note.renderer.setAttribute('gap', '6%')
-      note.renderer.setStyles?.(BOOK_CSS)
+      note.renderer.setStyles?.(NOTE_CSS)
       // Lay the note out off-screen so it has a size before it is shown.
       this.footnoteHost.style.visibility = 'hidden'
+      this.footnoteHost.style.height = ''
       this.footnoteHost.hidden = false
       this.footnoteHost.replaceChildren(note)
     })

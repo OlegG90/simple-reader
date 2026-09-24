@@ -24,11 +24,12 @@ Requires Node.js, Rust (MSVC toolchain) and Visual Studio Build Tools with the C
 ```
 npm install
 npx tauri dev -- -- samples/alice-in-wonderland.epub  # dev mode with a sample book
-npm test                                          # backend unit tests
+npm test                                          # frontend (vitest) and backend unit tests
 npm run build                                     # src-tauri/target/release/sreader.exe
 ```
 
-Sample public-domain books from Project Gutenberg are in [samples/](samples/).
+Sample books are in [samples/](samples/): public-domain EPUBs from Project Gutenberg, and FB2 files
+(windows-1251 and a UTF-8 `.fb2.zip`) generated from original text by `python scripts/make-fb2-samples.py`.
 
 ## License
 
