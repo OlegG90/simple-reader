@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Reader</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <main id="stage"></main>
+
+    <div id="hint" class="message" hidden>
+      <p>Drop a book here</p>
+      <p class="muted">EPUB, FB2</p>
+    </div>
+    <div id="error" class="message" role="alert" hidden></div>
+
+    <header id="topbar" class="edge">
+      <button id="toc-button" title="Contents (T)">Contents</button>
+      <span class="spacer"></span>
+      <button id="flow-button" title="Paginated / scrolled (M)"></button>
+      <button id="fullscreen-button" title="Full screen (F11)">Full screen</button>
+    </header>
+
+    <div id="scrim" hidden></div>
+    <nav id="toc" aria-label="Contents" hidden>
+      <h2 id="toc-title"></h2>
+      <p id="toc-author" class="muted"></p>
+      <div id="toc-tree"></div>
+    </nav>
+
+    <aside id="footnote" hidden></aside>
+
+    <div id="progress" hidden>
+      <div id="progress-fill"></div>
+      <span id="progress-label"></span>
+    </div>
+  </body>
+</html>
