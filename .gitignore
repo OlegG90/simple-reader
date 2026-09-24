@@ -1,0 +1,17 @@
+# Node
+node_modules/
+dist/
+
+# Rust / Tauri
+target/
+src-tauri/gen/
+
+# Local app data written next to the exe during development
+sreader.json
+
+# Editors / OS
+.vscode/
+.idea/
+*.log
+Thumbs.db
+.DS_Store
