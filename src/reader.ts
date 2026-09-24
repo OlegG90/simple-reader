@@ -1,4 +1,5 @@
 import type { TocItem } from './markdown'
+import { pageLabels } from './pages'
 import './vendor/foliate-js/view.js'
 import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
 
@@ -29,6 +30,14 @@ interface Renderer extends HTMLElement {
   getContents(): { doc: Document }[]
   /** In scrolled flow: the laid-out content height, including the margins. */
   readonly viewSize: number
+  /** Paginated: the width of one screen, the current screen and the chapter's screens (each with a blank one either side). */
+  readonly size: number
+  /** 'width' for horizontal pages, 'height' when vertical text is laid out in rows. */
+  readonly sideProp: 'width' | 'height'
+  readonly page: number
+  readonly pages: number
+  /** Paginated: the bottom margin's cell under each column; null when scrolled. */
+  readonly feet: HTMLElement[] | null
   goTo(target: { index: number; anchor: () => number }): Promise<void>
 }
 
@@ -76,6 +85,8 @@ const NOTE_BORDER_PX = 2
 const EDGE_CLICK = 0.2
 const WHEEL_PAUSE_MS = 250
 const LINE_PX = 60
+/** Share of a column treated as rounding noise when counting the columns text fills. */
+const COLUMN_EDGE_TOLERANCE = 0.01
 /** Paginated books show two columns in windows at least this wide. */
 const twoColumns = matchMedia('(min-width: 1400px)')
 
@@ -213,7 +224,10 @@ export class BookView {
     this.#updateColumns()
     twoColumns.addEventListener('change', this.#updateColumns)
 
-    view.addEventListener('relocate', e => this.events.relocate((e as CustomEvent<Relocation>).detail))
+    view.addEventListener('relocate', e => {
+      this.#showPageNumbers()
+      this.events.relocate((e as CustomEvent<Relocation>).detail)
+    })
     view.addEventListener('load', e => this.#attachInput((e as CustomEvent<{ doc: Document }>).detail.doc))
     view.addEventListener('external-link', e => this.#onExternalLink(e as CustomEvent))
     view.addEventListener('link', e => {
@@ -232,6 +246,49 @@ export class BookView {
       if (!lastLocation) throw error
       return view.init({ showTextStart: true })
     })
+  }
+
+  /**
+   * Paginated: "5 / 18" under each column, counting pages within the chapter.
+   * Vertical text gets none: there the bottom cells don't match its columns.
+   */
+  #showPageNumbers() {
+    const renderer = this.view.renderer
+    const { feet, page, pages } = renderer
+    if (!feet) return
+    // The paginator lays vertical text out in rows ('height'); its bottom cells aren't columns.
+    if (renderer.sideProp === 'height') return feet.forEach(foot => (foot.textContent = ''))
+    const columns = feet.length
+    const labels = pageLabels({ page, pages, columns, textColumns: this.#textColumns(columns) })
+    feet.forEach((foot, i) => (foot.textContent = labels[i]))
+  }
+
+  /** The last measurement, kept until the chapter or its layout changes. */
+  #measured: { doc: Document; layout: string; columns: number | undefined } | null = null
+
+  /**
+   * How many columns of the chapter hold text, so a half-empty last spread
+   * isn't counted as two pages. Measured the way paginator.expand() sizes
+   * the chapter, in either text direction.
+   */
+  #textColumns(columns: number) {
+    const renderer = this.view.renderer
+    const doc = renderer.getContents()[0]?.doc
+    if (!doc) return undefined
+    const layout = `${renderer.pages}:${renderer.size}:${columns}`
+    if (this.#measured?.doc === doc && this.#measured.layout === layout) return this.#measured.columns
+
+    const text = doc.createRange()
+    text.selectNodeContents(doc.body)
+    const textRect = text.getBoundingClientRect()
+    const rootRect = doc.documentElement.getBoundingClientRect()
+    const start = renderer.getAttribute('dir') === 'rtl' ? rootRect.right - textRect.right : textRect.left - rootRect.left
+    const textSize = start + textRect.width
+    const columnPitch = renderer.size / columns
+    // Text ending exactly on a column edge must not count the next column.
+    const measured = textSize > 0 && columnPitch > 0 ? Math.ceil(textSize / columnPitch - COLUMN_EDGE_TOLERANCE) : undefined
+    this.#measured = { doc, layout, columns: measured }
+    return measured
   }
 
   #setUpFootnotes() {

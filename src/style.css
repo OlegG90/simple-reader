@@ -68,6 +68,13 @@ body {
   inset: 0;
 }
 
+/* Page numbers in the bottom margin (paginated mode) */
+#stage foliate-view::part(foot) {
+  color: var(--muted);
+  opacity: 1; /* foliate-js dims the margins too; the muted colour is enough */
+  font-variant-numeric: tabular-nums;
+}
+
 /* Start screen (also shows errors) */
 #start {
   position: absolute;
