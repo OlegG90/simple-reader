@@ -12,7 +12,8 @@ import {
   type ResolvedTheme,
 } from './appearance'
 import { commandFor, type Command } from './keys'
-import { BookView, type BookStyle, type Flow, type Relocation } from './reader'
+import { makeMarkdownBook } from './markdown-book'
+import { BookView, type BookSource, type BookStyle, type Flow, type Relocation } from './reader'
 import { createSettingsPanel, type PanelValues } from './settings-panel'
 import { createTOCView } from './vendor/foliate-js/ui/tree.js'
 
@@ -23,6 +24,8 @@ interface Position {
 
 interface BookInfo {
   fileName: string
+  /** Markdown is rendered by the app itself (the backend decides by extension). */
+  markdown: boolean
   fingerprint: string
   position: Position | null
 }
@@ -33,7 +36,9 @@ interface PendingSave {
 }
 
 interface Settings extends PanelValues {
+  /** Books and Markdown remember their paginated / scrolled mode separately. */
   bookFlow: Flow
+  markdownFlow: Flow
 }
 
 const FLOWS: readonly Flow[] = ['paginated', 'scrolled']
@@ -42,6 +47,7 @@ function readSettings(stored: Record<string, unknown>): Settings {
   return {
     ...readAppearance(stored),
     bookFlow: oneOf(stored.bookFlow, FLOWS, 'paginated'),
+    markdownFlow: oneOf(stored.markdownFlow, FLOWS, 'scrolled'),
     savePositions: stored.savePositions !== false,
   }
 }
@@ -69,6 +75,9 @@ const settingsReady = invoke<Record<string, unknown>>('get_settings')
 let currentTocHref: string | undefined
 let book: BookView | null = null
 let fingerprint = ''
+/** Whether the open file is Markdown (which has its own mode and can be reloaded). */
+let markdownOpen = false
+const flowKey = () => (markdownOpen ? 'markdownFlow' : 'bookFlow')
 let tocView: { element: HTMLElement; setCurrentHref(href: string): void } | null = null
 
 // ---- Reading position -------------------------------------------------------
@@ -92,7 +101,19 @@ async function flushSave() {
 
 // ---- Opening books ----------------------------------------------------------
 
-async function openCurrentBook() {
+/** Reads the window's book: a file for foliate-js, or a book built from Markdown. */
+async function loadBook({ fileName, markdown }: BookInfo): Promise<BookSource> {
+  const bytes = await invoke<ArrayBuffer>('read_book')
+  if (markdown) {
+    const loadImage = (path: string) => invoke<ArrayBuffer>('read_book_resource', { path })
+    return makeMarkdownBook(new TextDecoder().decode(bytes), fileName, loadImage)
+  }
+  // foliate-js detects some formats by extension, so normalise its case.
+  return new File([bytes], fileName.toLowerCase())
+}
+
+/** Opens the window's book; `lastLocation` overrides the saved position (used by reload). */
+async function openCurrentBook(lastLocation?: string) {
   await flushSave()
   closeBook()
   let info: BookInfo | null = null
@@ -103,13 +124,12 @@ async function openCurrentBook() {
       return
     }
     fingerprint = info.fingerprint
-    const bytes = await invoke<ArrayBuffer>('read_book')
-    // foliate-js detects some formats by extension, so normalise its case.
-    const file = new File([bytes], info.fileName.toLowerCase())
+    markdownOpen = info.markdown
+    const source = await loadBook(info)
     await settingsReady
-    book = await BookView.open($('stage'), $('footnote'), file, {
-      flow: settings.bookFlow,
-      lastLocation: info.position?.cfi,
+    book = await BookView.open($('stage'), $('footnote'), source, {
+      flow: settings[flowKey()],
+      lastLocation: lastLocation ?? info.position?.cfi,
       style: currentBookStyle(),
     }, {
       relocate: onRelocate,
@@ -213,6 +233,9 @@ async function runCommand(command: Command) {
       return changeSettings({ fontSize: stepFontSize(settings.fontSize, 1) })
     case 'fontSmaller':
       return changeSettings({ fontSize: stepFontSize(settings.fontSize, -1) })
+    case 'reload':
+      // Works after a failed reload too (e.g. the editor was still saving).
+      return markdownOpen ? openCurrentBook(book?.location) : undefined
   }
   if (!book) return
   switch (command) {
@@ -245,11 +268,11 @@ async function handleEscape() {
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
 
-async function toggleFlow() {
+function toggleFlow() {
   if (!book) return
-  book.flow = book.flow === 'paginated' ? 'scrolled' : 'paginated'
+  const flow = (book.flow = book.flow === 'paginated' ? 'scrolled' : 'paginated')
   updateFlowButton()
-  await changeSettings({ bookFlow: book.flow })
+  changeSettings(markdownOpen ? { markdownFlow: flow } : { bookFlow: flow })
 }
 
 function updateFlowButton() {

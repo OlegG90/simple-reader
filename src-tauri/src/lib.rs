@@ -1,6 +1,7 @@
 mod cli;
 mod data_dir;
 mod fingerprint;
+mod paths;
 mod store;
 
 use serde::Serialize;
@@ -36,6 +37,8 @@ impl Books {
 #[serde(rename_all = "camelCase")]
 struct BookInfo {
     file_name: String,
+    /// Markdown is rendered by the app itself; everything else by foliate-js.
+    markdown: bool,
     fingerprint: String,
     position: Option<Position>,
 }
@@ -48,13 +51,23 @@ fn current_book(window: Window, books: State<Books>, store: State<Store>) -> Res
     let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
     let fingerprint = fingerprint::fingerprint(&path).map_err(|e| format!("{file_name}: {e}"))?;
     let position = store.read(|s| s.positions.get(&fingerprint).cloned());
-    Ok(Some(BookInfo { file_name, fingerprint, position }))
+    Ok(Some(BookInfo { file_name, markdown: paths::is_markdown(&path), fingerprint, position }))
 }
 
 #[tauri::command(async)]
 fn read_book(window: Window, books: State<Books>) -> Result<Response, String> {
     let path = books.path_of(window.label())?;
     std::fs::read(path).map(Response::new).map_err(|e| e.to_string())
+}
+
+/// Reads an image referenced by the open book (a Markdown file), relative to
+/// the book's folder. Only image files are served (see paths::resource_path),
+/// so a document cannot use this to read anything else.
+#[tauri::command(async)]
+fn read_book_resource(window: Window, books: State<Books>, path: String) -> Result<Response, String> {
+    let book = books.path_of(window.label())?;
+    let target = paths::resource_path(&book, &path).ok_or("Not an image next to the book")?;
+    std::fs::read(target).map(Response::new).map_err(|e| e.to_string())
 }
 
 /// Takes the fingerprint from the frontend so a position that is still
@@ -150,7 +163,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Store::load(data_dir::default_state_file()))
         .manage(Books::default())
-        .invoke_handler(tauri::generate_handler![current_book, read_book, save_position, get_settings, update_settings])
+        .invoke_handler(tauri::generate_handler![current_book, read_book, read_book_resource, save_position, get_settings, update_settings])
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { .. } => {
                 let _ = remember_geometry(window);

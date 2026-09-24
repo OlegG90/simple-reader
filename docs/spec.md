@@ -67,6 +67,8 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - Code blocks in a monospace font, **no** syntax highlighting.
 - YAML front matter is hidden.
 - `F5` reloads the file manually; there is no automatic file watching.
+- Links to headings stay in the file; web links open in the browser; links to other files are ignored.
+- Raw HTML is allowed, but scripts, frames, embedded objects and event handlers are removed.
 
 ## Window
 
@@ -126,7 +128,8 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 - Stored in one JSON file: settings, reading positions, recent files, window geometry.
 - **Location:** `sreader.json` next to the exe if that folder is writable; otherwise `%APPDATA%\simple-reader\sreader.json`. `--data-dir` overrides both.
 - **Reading position** is saved automatically. A global setting turns saving off; `--no-save` turns it off for one window.
-- **Book identity** is a content fingerprint (file size + hash of the start of the file), so the position survives moving or renaming the file. The path is stored separately, for the recent list only.
+- **Book identity** is a content fingerprint (file size + hash of the start of the file), so the position survives moving or renaming the file. The path is stored separately, for the recent list only. Markdown files are identified by their full path instead, because editing them changes their content.
+- **Markdown images** are read through the backend only when they are image files referenced relative to the `.md` file.
 
 ## Technology
 
