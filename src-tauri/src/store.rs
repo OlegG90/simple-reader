@@ -20,7 +20,7 @@ pub struct State {
 }
 
 /// How many books the start screen lists.
-pub const RECENT_LIMIT: usize = 10;
+const RECENT_LIMIT: usize = 10;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecentBook {
@@ -32,9 +32,10 @@ pub struct RecentBook {
 }
 
 impl State {
-    /// Puts a book at the top of the recent list, once, keeping the list short.
+    /// Puts a book at the top of the recent list, once (by fingerprint, like
+    /// positions), keeping the list short.
     pub fn remember(&mut self, book: RecentBook) {
-        self.recent.retain(|r| !crate::paths::same_file(&r.path, &book.path));
+        self.recent.retain(|r| r.fingerprint != book.fingerprint);
         self.recent.insert(0, book);
         self.recent.truncate(RECENT_LIMIT);
     }

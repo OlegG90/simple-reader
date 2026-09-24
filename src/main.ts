@@ -11,6 +11,7 @@ import {
   stepFontSize,
   type ResolvedTheme,
 } from './appearance'
+import { el } from './dom'
 import { commandFor, type Command } from './keys'
 import { makeMarkdownBook } from './markdown-book'
 import { BookView, type BookSource, type BookStyle, type Flow, type Relocation } from './reader'
@@ -145,7 +146,7 @@ async function openCurrentBook(lastLocation?: string) {
   }
   const title = book.title || info.fileName
   void appWindow.setTitle(title).catch(console.error)
-  void invoke('remember_book', { title, author: book.author }).catch(console.error)
+  void invoke('remember_book', { fingerprint, title, author: book.author }).catch(console.error)
   $('toc-title').textContent = title
   $('toc-author').textContent = book.author
   tocView = createTOCView(book.toc, (href: string) => {
@@ -191,24 +192,22 @@ async function showStartScreen() {
   $('start').hidden = false
 }
 
-function recentItem(book: RecentBook, index: number) {
-  const span = (className: string, text: string) => Object.assign(document.createElement('span'), { className, textContent: text })
-  const button = document.createElement('button')
-  button.append(
+function recentItem(book: RecentBook) {
+  const span = (className: string, textContent: string) => el('span', { className, textContent })
+  const button = el(
+    'button',
+    book.exists
+      ? { onclick: () => void invoke('open_recent', { key: book.key }).catch(console.error) }
+      : {
+          className: 'missing',
+          title: 'File not found. Click to remove it from the list.',
+          onclick: () => void invoke('forget_recent', { key: book.key }).then(showStartScreen, console.error),
+        },
     span('title', book.title || book.fileName),
     span('percent', book.fraction == null ? '' : `${Math.round(book.fraction * 100)}%`),
     span('author', book.author),
   )
-  if (book.exists) {
-    button.onclick = () => void invoke('open_recent', { key: book.key }).catch(console.error)
-  } else {
-    button.classList.add('missing')
-    button.title = 'File not found. Click to remove it from the list.'
-    button.onclick = () => void invoke('forget_recent', { key: book.key }).then(showStartScreen, console.error)
-  }
-  const item = document.createElement('li')
-  item.append(button)
-  return item
+  return el('li', {}, button)
 }
 
 function showError(fileName: string | undefined, error: unknown) {
@@ -379,7 +378,6 @@ function restyle() {
 let pendingSettings: Partial<Settings> = {}
 let settingsTimer: number | undefined
 
-/** Applies changes at once; saving waits for a pause, e.g. the end of a slider drag. */
 /** Applies settings in this window: the book's look and mode, and the panel. */
 function applySettings(changes: Partial<Settings>) {
   settings = { ...settings, ...changes }

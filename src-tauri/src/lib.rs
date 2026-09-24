@@ -20,9 +20,6 @@ use tauri_plugin_dialog::DialogExt;
 
 const DEFAULT_WIDTH: f64 = 1100.0;
 const DEFAULT_HEIGHT: f64 = 800.0;
-/// How far each new window is shifted from the saved position, so windows don't stack exactly.
-const CASCADE: f64 = 30.0;
-const CASCADE_STEPS: usize = 8;
 
 /// What each reader window shows (its book and `--no-save`), by window label.
 /// The frontend never passes file paths: it can only read the book the
@@ -98,7 +95,7 @@ fn current_book(window: Window, windows: State<ReaderWindows>, store: State<Stor
     let Launch { file: Some(path), no_save } = windows.get(window.label()) else {
         return Ok(None);
     };
-    let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let file_name = paths::file_name(&path);
     let fingerprint = fingerprint::fingerprint(&path).map_err(|e| format!("{file_name}: {e}"))?;
     let position = store.read(|s| s.positions.get(&fingerprint).cloned());
     Ok(Some(BookInfo { file_name, markdown: paths::is_markdown(&path), fingerprint, position, no_save }))
@@ -150,12 +147,23 @@ fn update_settings(window: Window, store: State<Store>, changes: Map<String, Val
 /// Adds the window's book to the recent list, with the title and author the
 /// frontend read from it.
 #[tauri::command(async)]
-fn remember_book(window: Window, windows: State<ReaderWindows>, store: State<Store>, title: String, author: String) -> Result<(), String> {
+fn remember_book(
+    window: Window,
+    windows: State<ReaderWindows>,
+    store: State<Store>,
+    fingerprint: String,
+    title: String,
+    author: String,
+) -> Result<(), String> {
     let Launch { file: Some(path), no_save: false } = windows.get(window.label()) else {
         return Ok(());
     };
-    let fingerprint = fingerprint::fingerprint(&path).map_err(|e| e.to_string())?;
-    store.update(|s| s.remember(RecentBook { path, title, author, fingerprint })).map_err(|e| e.to_string())
+    let book = RecentBook { path, title, author, fingerprint };
+    // Reopening the latest book (or reloading it) changes nothing: skip the write.
+    if store.read(|s| s.recent.first() == Some(&book)) {
+        return Ok(());
+    }
+    store.update(|s| s.remember(book)).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -175,19 +183,22 @@ struct RecentView {
 
 #[tauri::command(async)]
 fn recent_books(store: State<Store>) -> Vec<RecentView> {
-    store.read(|s| {
-        s.recent
-            .iter()
-            .map(|r| RecentView {
-                key: r.fingerprint.clone(),
-                title: r.title.clone(),
-                author: r.author.clone(),
-                file_name: r.path.file_name().unwrap_or_default().to_string_lossy().into_owned(),
-                fraction: s.positions.get(&r.fingerprint).map(|p| p.fraction),
-                exists: r.path.is_file(),
-            })
-            .collect()
-    })
+    let books = store.read(|s| {
+        let fraction = |r: &RecentBook| s.positions.get(&r.fingerprint).map(|p| p.fraction);
+        s.recent.iter().map(|r| (r.clone(), fraction(r))).collect::<Vec<_>>()
+    });
+    // Checked outside the store lock: a slow drive shouldn't hold up other windows.
+    books
+        .into_iter()
+        .map(|(r, fraction)| RecentView {
+            file_name: paths::file_name(&r.path),
+            exists: r.path.is_file(),
+            key: r.fingerprint,
+            title: r.title,
+            author: r.author,
+            fraction,
+        })
+        .collect()
 }
 
 /// Opens a recent book in this window. Books are picked by their key, so the
@@ -230,11 +241,9 @@ fn open_or_focus(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
 }
 
 fn open_window(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
-    static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    let label = format!("reader-{}", id + 1);
-    // Later windows step down and right in a small cycle, so none lands exactly on another.
-    let others = if app.webview_windows().is_empty() { 0.0 } else { (id % CASCADE_STEPS) as f64 + 1.0 };
+    static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
+    let label = format!("reader-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed));
+    let first = app.webview_windows().is_empty();
     app.state::<ReaderWindows>().insert(&label, launch);
 
     let (geometry, theme) = app.state::<Store>().read(|s| (s.window.clone(), s.settings.get("theme").cloned()));
@@ -244,14 +253,13 @@ fn open_window(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
         .initialization_script(theme_script(theme.as_ref().and_then(|t| t.as_str())))
         .visible(false);
     builder = match &geometry {
-        Some(g) => builder
-            .inner_size(g.width, g.height)
-            .position(g.x + others * CASCADE, g.y + others * CASCADE)
-            .maximized(g.maximized && others == 0.0),
+        Some(g) if first => builder.inner_size(g.width, g.height).position(g.x, g.y).maximized(g.maximized),
+        // Windows places (and cascades) later windows itself.
+        Some(g) => builder.inner_size(g.width, g.height),
         None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT).center(),
     };
     let window = builder.build()?;
-    if geometry.is_some() && !is_on_screen(&window)? {
+    if first && geometry.is_some() && !is_on_screen(&window)? {
         window.center()?;
     }
     window.show()
@@ -356,24 +364,23 @@ pub fn run() {
 /// Runs a command that doesn't open a window; returns the exit code.
 fn run_command(command: Command) -> i32 {
     match command {
-        Command::Help => console::print(cli::USAGE),
-        Command::Version => console::print(&format!("Simple Reader {}", env!("CARGO_PKG_VERSION"))),
+        Command::Help => report(Ok(()), cli::USAGE),
+        Command::Version => report(Ok(()), &format!("Simple Reader {}", env!("CARGO_PKG_VERSION"))),
         Command::Invalid(message) => {
             console::print(&format!("{message}\n\n{}", cli::USAGE));
-            return 2;
+            2
         }
-        Command::Register => {
-            let result = std::env::current_exe().and_then(|exe| register::register(&exe));
-            return report(result, &format!(
+        Command::Register => report(
+            std::env::current_exe().and_then(|exe| register::register(&exe)),
+            &format!(
                 "Simple Reader is registered for {}.\nIf another app still opens them, right-click a file > Open with > \
                  Choose another app > Simple Reader, and tick \"Always\".",
                 register::EXTENSIONS.join(", ")
-            ));
-        }
-        Command::Unregister => return report(register::unregister(), "Simple Reader is no longer registered for any file types."),
+            ),
+        ),
+        Command::Unregister => report(register::unregister(), "Simple Reader is no longer registered for any file types."),
         Command::Open { .. } => unreachable!("opening is handled by run()"),
     }
-    0
 }
 
 fn report(result: std::io::Result<()>, success: &str) -> i32 {

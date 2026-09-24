@@ -68,7 +68,8 @@ body {
   inset: 0;
 }
 
-.message {
+/* Start screen (also shows errors) */
+#start {
   position: absolute;
   inset: 0;
   display: flex;
@@ -81,11 +82,10 @@ body {
   font-size: 18px;
 }
 
-.message p {
+#start p {
   margin: 0;
 }
 
-/* Start screen */
 #error {
   margin-bottom: 28px;
   padding: 12px 18px;

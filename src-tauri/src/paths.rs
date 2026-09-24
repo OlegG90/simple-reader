@@ -17,21 +17,19 @@ pub fn is_markdown(path: &Path) -> bool {
 /// Whether two paths name the same file, as Windows sees it: resolving `.`
 /// and `..` and ignoring case.
 pub fn same_file(a: &Path, b: &Path) -> bool {
-    let key = |p: &Path| {
-        let full = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
-        let normal: PathBuf = full.components().fold(PathBuf::new(), |mut acc, c| {
-            match c {
-                Component::CurDir => {}
-                Component::ParentDir => {
-                    acc.pop();
-                }
-                other => acc.push(other),
-            }
-            acc
-        });
-        normal.to_string_lossy().to_lowercase()
-    };
-    key(a) == key(b)
+    path_key(a) == path_key(b)
+}
+
+/// A file's identity as Windows sees it: the absolute path (which resolves
+/// `.` and `..`), ignoring case.
+pub fn path_key(path: &Path) -> String {
+    let full = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+    full.to_string_lossy().to_lowercase()
+}
+
+/// The file name, for showing to the reader.
+pub fn file_name(path: &Path) -> String {
+    path.file_name().unwrap_or_default().to_string_lossy().into_owned()
 }
 
 /// Resolves an image a Markdown file refers to, relative to the file's folder.
