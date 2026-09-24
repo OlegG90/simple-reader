@@ -141,9 +141,9 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 - **Frontend:** plain TypeScript, no framework.
 - **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`.
 - **Plugins:** single-instance, dialog, opener. Command-line arguments are parsed by the app itself.
-- **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it locally.
-- **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags and attaches both to the GitHub Release.
-- **Icon:** a simple open-book icon (SVG → ICO), kept in the repo so it can be replaced.
+- **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it for the local architecture into `src-tauri/target/release/`; `npm run build:x64` / `build:arm64` build for a given architecture into `src-tauri/target/<target>/release/`.
+- **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags (the tag must match the version in `src-tauri/Cargo.toml`) and attaches both, as `sreader-x64.exe` and `sreader-arm64.exe`, to the GitHub Release. A manual run builds both as an artifact without publishing.
+- **Icon:** a simple open-book icon, drawn in `src-tauri/icons/app-icon.svg` and turned into the Windows icons with `tauri icon`, so it can be replaced.
 - The exe is unsigned, so SmartScreen asks for confirmation on first run ("More info" → "Run anyway").
 
 ## Testing
