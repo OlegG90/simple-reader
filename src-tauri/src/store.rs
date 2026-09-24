@@ -34,7 +34,7 @@ pub struct RecentBook {
 impl State {
     /// Puts a book at the top of the recent list, once, keeping the list short.
     pub fn remember(&mut self, book: RecentBook) {
-        self.recent.retain(|r| r.path != book.path);
+        self.recent.retain(|r| !crate::paths::same_file(&r.path, &book.path));
         self.recent.insert(0, book);
         self.recent.truncate(RECENT_LIMIT);
     }

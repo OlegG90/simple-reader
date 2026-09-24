@@ -22,57 +22,64 @@ const DEFAULT_WIDTH: f64 = 1100.0;
 const DEFAULT_HEIGHT: f64 = 800.0;
 /// How far each new window is shifted from the saved position, so windows don't stack exactly.
 const CASCADE: f64 = 30.0;
+const CASCADE_STEPS: usize = 8;
 
-/// What each window shows, by window label. The frontend never passes file
-/// paths: it can only read the book the backend assigned to its window, so
-/// book content cannot make the app read arbitrary files.
+/// What each reader window shows (its book and `--no-save`), by window label.
+/// The frontend never passes file paths: it can only read the book the
+/// backend assigned to its window, so book content cannot make the app read
+/// arbitrary files.
 #[derive(Default)]
-struct Windows(Mutex<HashMap<String, WindowBook>>);
+struct ReaderWindows(Mutex<HashMap<String, Launch>>);
 
-#[derive(Clone, Default)]
-struct WindowBook {
-    path: Option<PathBuf>,
-    /// `--no-save`: this window doesn't remember positions or recent books.
-    no_save: bool,
-}
-
-impl Windows {
-    fn get(&self, label: &str) -> WindowBook {
+impl ReaderWindows {
+    fn get(&self, label: &str) -> Launch {
         self.0.lock().unwrap().get(label).cloned().unwrap_or_default()
     }
 
     fn path_of(&self, label: &str) -> Result<PathBuf, String> {
-        self.get(label).path.ok_or_else(|| "No book is open".into())
+        self.get(label).file.ok_or_else(|| "No book is open".into())
+    }
+
+    fn insert(&self, label: &str, launch: Launch) {
+        self.0.lock().unwrap().insert(label.to_string(), launch);
+    }
+
+    fn remove(&self, label: &str) {
+        self.0.lock().unwrap().remove(label);
     }
 
     fn set_path(&self, label: &str, path: PathBuf) {
-        self.0.lock().unwrap().entry(label.to_string()).or_default().path = Some(path);
+        self.0.lock().unwrap().entry(label.to_string()).or_default().file = Some(path);
     }
 
-    /// The window already showing `path`, if any.
-    fn showing(&self, path: &Path) -> Option<String> {
+    /// The window, other than `except`, already showing `path`.
+    fn showing(&self, path: &Path, except: Option<&str>) -> Option<String> {
         let windows = self.0.lock().unwrap();
-        windows.iter().find(|(_, w)| w.path.as_deref() == Some(path)).map(|(label, _)| label.clone())
+        windows
+            .iter()
+            .filter(|(label, _)| Some(label.as_str()) != except)
+            .find(|(_, w)| w.file.as_deref().is_some_and(|file| paths::same_file(file, path)))
+            .map(|(label, _)| label.clone())
     }
+}
+
+/// Brings forward the window (other than `except`) already showing `path`;
+/// false when there is none.
+fn focus_showing(app: &AppHandle, path: &Path, except: Option<&str>) -> bool {
+    let Some(label) = app.state::<ReaderWindows>().showing(path, except) else { return false };
+    let Some(window) = app.get_webview_window(&label) else { return false };
+    let _ = window.unminimize();
+    window.set_focus().is_ok()
 }
 
 /// Shows `path` in `window` and tells its frontend to load it, unless another
 /// window already shows that book; then that window comes forward instead.
 fn show_book(window: &Window, path: PathBuf) {
-    let windows = window.state::<Windows>();
-    if let Some(label) = windows.showing(&path).filter(|label| label != window.label()) {
-        if focus(window.app_handle(), &label).is_ok() {
-            return;
-        }
+    if focus_showing(window.app_handle(), &path, Some(window.label())) {
+        return;
     }
-    windows.set_path(window.label(), path);
+    window.state::<ReaderWindows>().set_path(window.label(), path);
     let _ = window.emit_to(window.label(), "book-changed", ());
-}
-
-fn focus(app: &AppHandle, label: &str) -> tauri::Result<()> {
-    let window = app.get_webview_window(label).ok_or(tauri::Error::WindowNotFound)?;
-    window.unminimize()?;
-    window.set_focus()
 }
 
 #[derive(Serialize)]
@@ -87,8 +94,8 @@ struct BookInfo {
 }
 
 #[tauri::command(async)]
-fn current_book(window: Window, windows: State<Windows>, store: State<Store>) -> Result<Option<BookInfo>, String> {
-    let WindowBook { path: Some(path), no_save } = windows.get(window.label()) else {
+fn current_book(window: Window, windows: State<ReaderWindows>, store: State<Store>) -> Result<Option<BookInfo>, String> {
+    let Launch { file: Some(path), no_save } = windows.get(window.label()) else {
         return Ok(None);
     };
     let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
@@ -98,7 +105,7 @@ fn current_book(window: Window, windows: State<Windows>, store: State<Store>) ->
 }
 
 #[tauri::command(async)]
-fn read_book(window: Window, windows: State<Windows>) -> Result<Response, String> {
+fn read_book(window: Window, windows: State<ReaderWindows>) -> Result<Response, String> {
     let path = windows.path_of(window.label())?;
     std::fs::read(path).map(Response::new).map_err(|e| e.to_string())
 }
@@ -107,7 +114,7 @@ fn read_book(window: Window, windows: State<Windows>) -> Result<Response, String
 /// the book's folder. Only image files are served (see paths::resource_path),
 /// so a document cannot use this to read anything else.
 #[tauri::command(async)]
-fn read_book_resource(window: Window, windows: State<Windows>, path: String) -> Result<Response, String> {
+fn read_book_resource(window: Window, windows: State<ReaderWindows>, path: String) -> Result<Response, String> {
     let book = windows.path_of(window.label())?;
     let target = paths::resource_path(&book, &path).ok_or("Not an image next to the book")?;
     std::fs::read(target).map(Response::new).map_err(|e| e.to_string())
@@ -143,8 +150,8 @@ fn update_settings(window: Window, store: State<Store>, changes: Map<String, Val
 /// Adds the window's book to the recent list, with the title and author the
 /// frontend read from it.
 #[tauri::command(async)]
-fn remember_book(window: Window, windows: State<Windows>, store: State<Store>, title: String, author: String) -> Result<(), String> {
-    let WindowBook { path: Some(path), no_save: false } = windows.get(window.label()) else {
+fn remember_book(window: Window, windows: State<ReaderWindows>, store: State<Store>, title: String, author: String) -> Result<(), String> {
+    let Launch { file: Some(path), no_save: false } = windows.get(window.label()) else {
         return Ok(());
     };
     let fingerprint = fingerprint::fingerprint(&path).map_err(|e| e.to_string())?;
@@ -154,6 +161,9 @@ fn remember_book(window: Window, windows: State<Windows>, store: State<Store>, t
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RecentView {
+    /// Identifies the entry (the book's fingerprint), so a click still finds
+    /// the right book after the list changed in another window.
+    key: String,
     title: String,
     author: String,
     file_name: String,
@@ -169,6 +179,7 @@ fn recent_books(store: State<Store>) -> Vec<RecentView> {
         s.recent
             .iter()
             .map(|r| RecentView {
+                key: r.fingerprint.clone(),
                 title: r.title.clone(),
                 author: r.author.clone(),
                 file_name: r.path.file_name().unwrap_or_default().to_string_lossy().into_owned(),
@@ -179,24 +190,20 @@ fn recent_books(store: State<Store>) -> Vec<RecentView> {
     })
 }
 
-/// Opens a recent book in this window. Books are picked by their place in the
-/// list, so the frontend still never supplies a path.
+/// Opens a recent book in this window. Books are picked by their key, so the
+/// frontend still never supplies a path.
 #[tauri::command(async)]
-fn open_recent(window: Window, store: State<Store>, index: usize) -> Result<(), String> {
-    let path = store.read(|s| s.recent.get(index).map(|r| r.path.clone())).ok_or("No such recent book")?;
+fn open_recent(window: Window, store: State<Store>, key: String) -> Result<(), String> {
+    let path = store
+        .read(|s| s.recent.iter().find(|r| r.fingerprint == key).map(|r| r.path.clone()))
+        .ok_or("That book is no longer in the recent list")?;
     show_book(&window, path);
     Ok(())
 }
 
 #[tauri::command(async)]
-fn forget_recent(store: State<Store>, index: usize) -> Result<(), String> {
-    store
-        .update(|s| {
-            if index < s.recent.len() {
-                s.recent.remove(index);
-            }
-        })
-        .map_err(|e| e.to_string())
+fn forget_recent(store: State<Store>, key: String) -> Result<(), String> {
+    store.update(|s| s.recent.retain(|r| r.fingerprint != key)).map_err(|e| e.to_string())
 }
 
 /// Ctrl+O: asks for a book and opens it in this window.
@@ -206,7 +213,7 @@ fn pick_book(window: Window) -> Result<(), String> {
         .dialog()
         .file()
         .set_parent(&window)
-        .add_filter("Books", &["epub", "fb2", "fbz", "zip", "md"])
+        .add_filter("Books", &["epub", "fb2", "fb2.zip", "fbz", "md"])
         .blocking_pick_file();
     if let Some(path) = picked {
         show_book(&window, path.into_path().map_err(|e| e.to_string())?);
@@ -216,23 +223,19 @@ fn pick_book(window: Window) -> Result<(), String> {
 
 /// Opens a window for `launch`, or brings forward the one already showing its file.
 fn open_or_focus(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
-    if let Some(label) = launch.file.as_deref().and_then(|file| app.state::<Windows>().showing(file)) {
-        if focus(app, &label).is_ok() {
-            return Ok(());
-        }
+    if launch.file.as_deref().is_some_and(|file| focus_showing(app, file, None)) {
+        return Ok(());
     }
     open_window(app, launch)
 }
 
 fn open_window(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
-    static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-    let label = format!("reader-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed));
-    let others = app.webview_windows().len() as f64;
-    app.state::<Windows>()
-        .0
-        .lock()
-        .unwrap()
-        .insert(label.clone(), WindowBook { path: launch.file, no_save: launch.no_save });
+    static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    let label = format!("reader-{}", id + 1);
+    // Later windows step down and right in a small cycle, so none lands exactly on another.
+    let others = if app.webview_windows().is_empty() { 0.0 } else { (id % CASCADE_STEPS) as f64 + 1.0 };
+    app.state::<ReaderWindows>().insert(&label, launch);
 
     let (geometry, theme) = app.state::<Store>().read(|s| (s.window.clone(), s.settings.get("theme").cloned()));
     let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
@@ -311,8 +314,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(Store::load(data_dir::resolve_state_file(data_dir.as_deref())))
-        .manage(Windows::default())
+        .manage(ReaderWindows::default())
         .invoke_handler(tauri::generate_handler![
             current_book,
             read_book,
@@ -331,7 +333,7 @@ pub fn run() {
                 let _ = remember_geometry(window);
             }
             WindowEvent::Destroyed => {
-                window.state::<Windows>().0.lock().unwrap().remove(window.label());
+                window.state::<ReaderWindows>().remove(window.label());
             }
             WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
                 if let Some(path) = paths.first() {
@@ -341,6 +343,9 @@ pub fn run() {
             _ => {}
         })
         .setup(move |app| {
+            // Loaded here, in the one running app: a second launch hands over
+            // its file and exits before setup, so it never touches the data file.
+            app.manage(Store::load(data_dir::resolve_state_file(data_dir.as_deref())));
             open_window(app.handle(), launch)?;
             Ok(())
         })

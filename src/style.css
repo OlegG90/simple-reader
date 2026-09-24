@@ -86,6 +86,13 @@ body {
 }
 
 /* Start screen */
+#error {
+  margin-bottom: 28px;
+  padding: 12px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
 #start h1 {
   margin: 0 0 8px;
   font-size: 26px;
@@ -132,11 +139,11 @@ button.link:hover {
 }
 
 #recent .author,
-#recent .progress {
+#recent .percent {
   color: var(--muted);
 }
 
-#recent .progress {
+#recent .percent {
   grid-row: span 2;
   align-self: center;
   padding-inline-start: 12px;

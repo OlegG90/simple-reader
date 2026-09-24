@@ -140,7 +140,8 @@ async function openCurrentBook(lastLocation?: string) {
     })
   } catch (e) {
     showError(info?.fileName, e)
-    return
+    // The drop hint, Ctrl+O and the recent books stay one step away.
+    return showStartScreen()
   }
   const title = book.title || info.fileName
   void appWindow.setTitle(title).catch(console.error)
@@ -171,6 +172,7 @@ function closeBook() {
 }
 
 interface RecentBook {
+  key: string
   title: string
   author: string
   fileName: string
@@ -194,15 +196,15 @@ function recentItem(book: RecentBook, index: number) {
   const button = document.createElement('button')
   button.append(
     span('title', book.title || book.fileName),
-    span('progress', book.fraction == null ? '' : `${Math.round(book.fraction * 100)}%`),
+    span('percent', book.fraction == null ? '' : `${Math.round(book.fraction * 100)}%`),
     span('author', book.author),
   )
   if (book.exists) {
-    button.onclick = () => void invoke('open_recent', { index }).catch(console.error)
+    button.onclick = () => void invoke('open_recent', { key: book.key }).catch(console.error)
   } else {
     button.classList.add('missing')
     button.title = 'File not found. Click to remove it from the list.'
-    button.onclick = () => void invoke('forget_recent', { index }).then(showStartScreen, console.error)
+    button.onclick = () => void invoke('forget_recent', { key: book.key }).then(showStartScreen, console.error)
   }
   const item = document.createElement('li')
   item.append(button)
@@ -378,10 +380,20 @@ let pendingSettings: Partial<Settings> = {}
 let settingsTimer: number | undefined
 
 /** Applies changes at once; saving waits for a pause, e.g. the end of a slider drag. */
-function changeSettings(changes: Partial<Settings>) {
+/** Applies settings in this window: the book's look and mode, and the panel. */
+function applySettings(changes: Partial<Settings>) {
   settings = { ...settings, ...changes }
   if (Object.keys(changes).some(isAppearanceKey)) restyle()
   settingsPanel.show(settings)
+  if (book && book.flow !== settings[flowKey()]) {
+    book.flow = settings[flowKey()]
+    updateFlowButton()
+  }
+}
+
+/** Applies changes made in this window, and saves them after a pause. */
+function changeSettings(changes: Partial<Settings>) {
+  applySettings(changes)
   pendingSettings = { ...pendingSettings, ...changes }
   clearTimeout(settingsTimer)
   settingsTimer = window.setTimeout(flushSettings, SAVE_DELAY_MS)
@@ -426,13 +438,8 @@ $('progress').addEventListener('click', e => {
 appWindow.listen('book-changed', () => openCurrentBook())
 // Another window changed a setting: apply it here too (it is already saved).
 appWindow.listen<Record<string, unknown>>('settings-changed', ({ payload }) => {
-  settings = readSettings({ ...settings, ...payload })
-  restyle()
-  settingsPanel.show(settings)
-  if (book && book.flow !== settings[flowKey()]) {
-    book.flow = settings[flowKey()]
-    updateFlowButton()
-  }
+  const valid = readSettings({ ...settings, ...payload })
+  applySettings(Object.fromEntries(Object.keys(payload).map(k => [k, valid[k as keyof Settings]])))
 })
 // flushSave never throws, so a failed save cannot keep the window open.
 appWindow.onCloseRequested(async () => {

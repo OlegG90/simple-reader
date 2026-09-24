@@ -4,6 +4,7 @@
 /// prompt may already be showing by then.
 pub fn print(text: &str) {
     use windows_sys::Win32::System::Console::{AttachConsole, GetStdHandle, ATTACH_PARENT_PROCESS, STD_OUTPUT_HANDLE};
+    // SAFETY: plain Win32 calls with constant arguments; a failed attach just leaves no console.
     unsafe {
         if GetStdHandle(STD_OUTPUT_HANDLE).is_null() {
             AttachConsole(ATTACH_PARENT_PROCESS);

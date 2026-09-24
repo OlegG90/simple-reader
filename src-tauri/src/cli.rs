@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 /// A window to open.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Launch {
     /// The book to open; `None` shows the start screen.
     pub file: Option<PathBuf>,
@@ -33,7 +33,8 @@ Options:
   <file>               Open an .epub, .fb2, .fb2.zip or .md file
   --no-save            Don't remember the reading position for this window
   --data-dir <path>    Keep settings and positions in this folder
-  --register           Offer Simple Reader for .epub, .fb2 and .md files (current user)
+                       (a running Simple Reader keeps the folder it started with)
+  --register           Offer Simple Reader for .epub, .fb2, .fbz and .md files (current user)
   --unregister         Remove what --register added
   --help, -h           Show this help
   --version, -V        Show the version";

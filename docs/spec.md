@@ -103,7 +103,7 @@ Launching without a file (`sreader`) shows an empty window with a "Drop a book h
 
 ### Errors
 
-A corrupt or unsupported file shows a message in the window; the app does not crash.
+A corrupt, missing or unsupported file shows a message above the start screen, so another book is one step away; the app does not crash.
 
 ## Command line
 
@@ -140,7 +140,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 - **Shell:** Tauri 2 (Rust) + WebView2.
 - **Frontend:** plain TypeScript, no framework.
 - **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`.
-- **Plugins:** single-instance, CLI arguments, dialog.
+- **Plugins:** single-instance, dialog, opener. Command-line arguments are parsed by the app itself.
 - **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it locally.
 - **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags and attaches both to the GitHub Release.
 - **Icon:** a simple open-book icon (SVG → ICO), kept in the repo so it can be replaced.

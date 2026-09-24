@@ -14,6 +14,26 @@ pub fn is_markdown(path: &Path) -> bool {
     has_extension(path, &["md"])
 }
 
+/// Whether two paths name the same file, as Windows sees it: resolving `.`
+/// and `..` and ignoring case.
+pub fn same_file(a: &Path, b: &Path) -> bool {
+    let key = |p: &Path| {
+        let full = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+        let normal: PathBuf = full.components().fold(PathBuf::new(), |mut acc, c| {
+            match c {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    acc.pop();
+                }
+                other => acc.push(other),
+            }
+            acc
+        });
+        normal.to_string_lossy().to_lowercase()
+    };
+    key(a) == key(b)
+}
+
 /// Resolves an image a Markdown file refers to, relative to the file's folder.
 /// Anything that isn't an image or isn't a plain relative path (a root, a
 /// drive or a UNC share) is refused, so a document can't read other files.
@@ -44,6 +64,12 @@ mod tests {
         for path in ["secrets.txt", "noextension", r"C:\Windows\a.png", r"\Windows\a.png", "/Users/x/a.png", "C:a.png", r"\\server\share\a.png"] {
             assert_eq!(resource_path(book, path), None, "{path}");
         }
+    }
+
+    #[test]
+    fn same_file_ignores_case_and_dots() {
+        assert!(same_file(Path::new(r"C:\Books\A.EPUB"), Path::new(r"c:\books\x\..\.\a.epub")));
+        assert!(!same_file(Path::new(r"C:\Books\a.epub"), Path::new(r"C:\Books\b.epub")));
     }
 
     #[test]
