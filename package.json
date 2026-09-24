@@ -7,7 +7,6 @@
     "dev": "vite",
     "build:web": "tsc --noEmit && vite build",
     "tauri": "tauri",
-    "start": "tauri dev",
     "build": "tauri build --no-bundle",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml"
   },

@@ -3,7 +3,7 @@ import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
 
 export type Flow = 'paginated' | 'scrolled'
 
-export interface TocItem {
+interface TocItem {
   label: string
   href?: string
   subitems?: TocItem[]
@@ -45,7 +45,7 @@ interface FoliateView extends HTMLElement {
   prev(distance?: number): Promise<void>
 }
 
-export interface BookViewEvents {
+interface BookViewEvents {
   relocate(location: Relocation): void
   /** Key presses inside the book, which lives in iframes. */
   key(event: KeyboardEvent): void
@@ -104,8 +104,8 @@ const BOOK_CSS = `
 const EDGE_CLICK = 0.2
 const WHEEL_PAUSE_MS = 250
 const LINE_PX = 60
-/** Window width from which paginated books show two columns. */
-const TWO_COLUMNS_FROM_PX = 1400
+/** Paginated books show two columns in windows at least this wide. */
+const twoColumns = matchMedia('(min-width: 1400px)')
 
 const formatLang = (x?: LangMap) => (!x ? '' : typeof x === 'string' ? x : (Object.values(x)[0] ?? ''))
 
@@ -127,7 +127,8 @@ export class BookView {
   readonly view = document.createElement('foliate-view') as FoliateView
   #footnotes = new FootnoteHandler()
   #lastWheel = 0
-  #onResize = () => this.#updateColumns()
+  #updateColumns = () =>
+    this.view.renderer.setAttribute('max-column-count', twoColumns.matches ? '2' : '1')
 
   private constructor(
     host: HTMLElement,
@@ -174,12 +175,17 @@ export class BookView {
     this.view.renderer.setAttribute('flow', flow)
   }
 
+  /** Scrolls a line in scrolled mode, turns a page in paginated mode. */
   lineDown() {
-    return this.flow === 'scrolled' ? this.view.next(LINE_PX) : this.view.next()
+    return this.view.next(this.#lineDistance())
   }
 
   lineUp() {
-    return this.flow === 'scrolled' ? this.view.prev(LINE_PX) : this.view.prev()
+    return this.view.prev(this.#lineDistance())
+  }
+
+  #lineDistance() {
+    return this.flow === 'scrolled' ? LINE_PX : undefined
   }
 
   goToChapterEdge(edge: 'start' | 'end') {
@@ -195,7 +201,7 @@ export class BookView {
   }
 
   destroy() {
-    removeEventListener('resize', this.#onResize)
+    twoColumns.removeEventListener('change', this.#updateColumns)
     this.hideFootnote()
     this.view.close()
     this.view.remove()
@@ -204,10 +210,10 @@ export class BookView {
   async #open(file: File, { flow, lastLocation }: OpenOptions) {
     const { view } = this
     await view.open(file)
-    view.renderer.setAttribute('flow', flow)
+    this.flow = flow
     view.renderer.setAttribute('max-inline-size', '700px')
     this.#updateColumns()
-    addEventListener('resize', this.#onResize)
+    twoColumns.addEventListener('change', this.#updateColumns)
     view.renderer.setStyles?.(BOOK_CSS)
 
     view.addEventListener('relocate', e => this.events.relocate((e as CustomEvent<Relocation>).detail))
@@ -225,12 +231,6 @@ export class BookView {
     this.#setUpFootnotes()
 
     await view.init({ lastLocation, showTextStart: true })
-  }
-
-  #updateColumns() {
-    const columns = innerWidth >= TWO_COLUMNS_FROM_PX ? '2' : '1'
-    if (this.view.renderer.getAttribute('max-column-count') !== columns)
-      this.view.renderer.setAttribute('max-column-count', columns)
   }
 
   #setUpFootnotes() {

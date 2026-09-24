@@ -28,8 +28,15 @@ const TOP_EDGE_PX = 48
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const appWindow = getCurrentWindow()
+const topbar = $('topbar')
 
+// Loaded alongside the first book rather than before it.
+const settingsLoaded = invoke<Settings>('get_settings').catch(e => {
+  console.error(e)
+  return {}
+})
 let settings: Settings = {}
+let currentTocHref: string | undefined
 let book: BookView | null = null
 let fingerprint = ''
 let tocView: { element: HTMLElement; setCurrentHref(href: string): void } | null = null
@@ -68,6 +75,7 @@ async function openCurrentBook() {
     const bytes = await invoke<ArrayBuffer>('read_book')
     // foliate-js detects some formats by extension, so normalise its case.
     const file = new File([bytes], info.fileName.toLowerCase())
+    settings = await settingsLoaded
     book = await BookView.open($('stage'), $('footnote'), file, {
       flow: settings.bookFlow ?? 'paginated',
       lastLocation: info.position?.cfi,
@@ -81,16 +89,17 @@ async function openCurrentBook() {
     showError(info?.fileName, e)
     return
   }
-  await appWindow.setTitle(book.title || info.fileName)
-  $('toc-title').textContent = book.title || info.fileName
+  const title = book.title || info.fileName
+  void appWindow.setTitle(title).catch(console.error)
+  $('toc-title').textContent = title
   $('toc-author').textContent = book.author
   tocView = createTOCView(book.toc, (href: string) => {
     book?.view.goTo(href).catch(console.error)
     closeToc()
   })
   $('toc-tree').replaceChildren(tocView.element)
-  const currentHref = book.view.lastLocation?.tocItem?.href
-  if (currentHref) tocView.setCurrentHref(currentHref)
+  currentTocHref = undefined
+  highlightToc(book.view.lastLocation?.tocItem?.href)
   $('progress').hidden = false
   updateFlowButton()
 }
@@ -104,7 +113,7 @@ function closeBook() {
   $('hint').hidden = true
   $('error').hidden = true
   $('progress').hidden = true
-  $('topbar').classList.remove('shown')
+  topbar.classList.remove('shown')
 }
 
 function showError(fileName: string | undefined, error: unknown) {
@@ -124,8 +133,14 @@ function onRelocate(location: Relocation) {
   const percent = Math.round(fraction * 100)
   $('progress-fill').style.width = `${fraction * 100}%`
   $('progress-label').textContent = tocItem?.label ? `${percent}% · ${tocItem.label}` : `${percent}%`
-  if (tocItem?.href) tocView?.setCurrentHref(tocItem.href)
+  highlightToc(tocItem?.href)
   scheduleSave({ fingerprint, position: { cfi, fraction } })
+}
+
+function highlightToc(href: string | undefined) {
+  if (!href || href === currentTocHref) return
+  currentTocHref = href
+  tocView?.setCurrentHref(href)
 }
 
 // ---- Commands ---------------------------------------------------------------
@@ -208,7 +223,6 @@ function closeToc() {
 let hideTopbarTimer: number | undefined
 
 function onPointer(y: number) {
-  const topbar = $('topbar')
   if (!book) return
   if (y < TOP_EDGE_PX) {
     clearTimeout(hideTopbarTimer)
@@ -232,15 +246,7 @@ $('progress').addEventListener('click', e => {
 })
 
 appWindow.listen('book-changed', () => openCurrentBook())
-appWindow.onCloseRequested(async () => {
-  try {
-    await flushSave()
-  } catch (e) {
-    console.error(e)
-  }
-})
+// flushSave never throws, so a failed save cannot keep the window open.
+appWindow.onCloseRequested(flushSave)
 
-invoke<Settings>('get_settings')
-  .then(s => (settings = s))
-  .catch(console.error)
-  .finally(openCurrentBook)
+openCurrentBook()

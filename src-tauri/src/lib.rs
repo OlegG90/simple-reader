@@ -40,7 +40,7 @@ struct BookInfo {
     position: Option<Position>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn current_book(window: Window, books: State<Books>, store: State<Store>) -> Result<Option<BookInfo>, String> {
     let Ok(path) = books.path_of(window.label()) else {
         return Ok(None);
@@ -51,7 +51,7 @@ fn current_book(window: Window, books: State<Books>, store: State<Store>) -> Res
     Ok(Some(BookInfo { file_name, fingerprint, position }))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_book(window: Window, books: State<Books>) -> Result<Response, String> {
     let path = books.path_of(window.label())?;
     std::fs::read(path).map(Response::new).map_err(|e| e.to_string())
@@ -59,7 +59,7 @@ fn read_book(window: Window, books: State<Books>) -> Result<Response, String> {
 
 /// Takes the fingerprint from the frontend so a position that is still
 /// pending when another book replaces it is saved under the right book.
-#[tauri::command]
+#[tauri::command(async)]
 fn save_position(store: State<Store>, fingerprint: String, position: Position) -> Result<(), String> {
     store
         .update(|s| {
@@ -74,7 +74,7 @@ fn get_settings(store: State<Store>) -> Map<String, Value> {
 }
 
 /// Merges changed settings, so windows never overwrite each other's changes.
-#[tauri::command]
+#[tauri::command(async)]
 fn update_settings(store: State<Store>, changes: Map<String, Value>) -> Result<(), String> {
     store.update(|s| s.settings.extend(changes)).map_err(|e| e.to_string())
 }
@@ -105,13 +105,7 @@ fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
 /// A saved position can point at a monitor that is no longer connected.
 fn is_on_screen(window: &tauri::WebviewWindow) -> tauri::Result<bool> {
     let pos = window.outer_position()?;
-    Ok(window.available_monitors()?.iter().any(|m| {
-        let (origin, size) = (m.position(), m.size());
-        pos.x >= origin.x
-            && pos.y >= origin.y
-            && pos.x < origin.x + size.width as i32
-            && pos.y < origin.y + size.height as i32
-    }))
+    Ok(window.monitor_from_point(pos.x.into(), pos.y.into())?.is_some())
 }
 
 fn remember_geometry(window: &Window) -> tauri::Result<()> {
@@ -133,7 +127,6 @@ fn remember_geometry(window: &Window) -> tauri::Result<()> {
     Ok(())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let launch = cli::parse(std::env::args().skip(1));
     tauri::Builder::default()
@@ -154,7 +147,7 @@ pub fn run() {
             _ => {}
         })
         .setup(move |app| {
-            open_window(app.handle(), launch.file.clone())?;
+            open_window(app.handle(), launch.file)?;
             Ok(())
         })
         .run(tauri::generate_context!())
