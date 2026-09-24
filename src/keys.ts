@@ -33,7 +33,8 @@ export function commandFor(e: Key): Command | null {
     }
     return null
   }
-  switch (e.key) {
+  // Letters work with or without Shift / Caps Lock.
+  switch (e.key.length === 1 ? e.key.toLowerCase() : e.key) {
     case 'ArrowLeft':
       return 'left'
     case 'ArrowRight':
@@ -53,16 +54,12 @@ export function commandFor(e: Key): Command | null {
     case 'End':
       return 'chapterEnd'
     case 't':
-    case 'T':
       return 'toc'
     case 'm':
-    case 'M':
       return 'toggleFlow'
     case 's':
-    case 'S':
       return 'settings'
     case 'd':
-    case 'D':
       return 'cycleTheme'
     case 'F11':
       return 'fullscreen'

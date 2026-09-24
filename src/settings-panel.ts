@@ -1,5 +1,6 @@
-import { COLUMN_WIDTH, FONTS, LINE_HEIGHT, THEMES, stepFontSize, type Appearance, type Font, type Theme } from './appearance'
+import { FONTS, LINE_HEIGHT, LINE_LENGTH, THEMES, stepFontSize, type Appearance, type Font, type Range, type Theme } from './appearance'
 
+/** Everything the settings panel edits. */
 export interface PanelValues extends Appearance {
   savePositions: boolean
 }
@@ -17,7 +18,7 @@ function field(label: string, control: HTMLElement, value?: HTMLElement) {
   return el('div', { className: 'field' }, el('span', { className: 'label' }, label), control, ...(value ? [value] : []))
 }
 
-function range({ min, max, step }: { min: number; max: number; step: number }) {
+function range({ min, max, step }: Range) {
   return el('input', { type: 'range', min: String(min), max: String(max), step: String(step) })
 }
 
@@ -25,7 +26,9 @@ function range({ min, max, step }: { min: number; max: number; step: number }) {
  * Builds the settings controls into `host`. Every change is reported through
  * `onChange` with just the changed values; `show` refreshes the controls.
  */
-export function createSettingsPanel(host: HTMLElement, onChange: (changes: Partial<PanelValues>) => void) {
+export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onChange: (changes: Partial<PanelValues>) => void) {
+  let current = initial
+
   const themeButtons = THEMES.map(theme =>
     el('button', { type: 'button', textContent: THEME_LABELS[theme], onclick: () => onChange({ theme }) }),
   )
@@ -33,7 +36,6 @@ export function createSettingsPanel(host: HTMLElement, onChange: (changes: Parti
   font.onchange = () => onChange({ font: font.value as Font })
 
   const size = el('output')
-  let current: PanelValues
   const sizeButton = (text: string, direction: 1 | -1) =>
     el('button', { type: 'button', textContent: text, onclick: () => onChange({ fontSize: stepFontSize(current.fontSize, direction) }) })
 
@@ -41,9 +43,9 @@ export function createSettingsPanel(host: HTMLElement, onChange: (changes: Parti
   const lineHeightValue = el('output')
   lineHeight.oninput = () => onChange({ lineHeight: Number(lineHeight.value) })
 
-  const columnWidth = range(COLUMN_WIDTH)
-  const columnWidthValue = el('output')
-  columnWidth.oninput = () => onChange({ columnWidth: Number(columnWidth.value) })
+  const lineLength = range(LINE_LENGTH)
+  const lineLengthValue = el('output')
+  lineLength.oninput = () => onChange({ lineLength: Number(lineLength.value) })
 
   const savePositions = el('input', { type: 'checkbox' })
   savePositions.onchange = () => onChange({ savePositions: savePositions.checked })
@@ -54,21 +56,22 @@ export function createSettingsPanel(host: HTMLElement, onChange: (changes: Parti
     field('Font', font),
     field('Size', el('div', { className: 'stepper' }, sizeButton('A−', -1), size, sizeButton('A+', 1))),
     field('Line spacing', lineHeight, lineHeightValue),
-    field('Column width', columnWidth, columnWidthValue),
+    field('Line length', lineLength, lineLengthValue),
     el('label', { className: 'check' }, savePositions, 'Remember reading position'),
   )
 
-  return {
-    show(values: PanelValues) {
-      current = values
-      themeButtons.forEach((button, i) => button.setAttribute('aria-pressed', String(THEMES[i] === values.theme)))
-      font.value = values.font
-      size.textContent = `${values.fontSize}px`
-      lineHeight.value = String(values.lineHeight)
-      lineHeightValue.textContent = values.lineHeight.toFixed(1)
-      columnWidth.value = String(values.columnWidth)
-      columnWidthValue.textContent = `${values.columnWidth}px`
-      savePositions.checked = values.savePositions
-    },
+  function show(values: PanelValues) {
+    current = values
+    themeButtons.forEach((button, i) => button.setAttribute('aria-pressed', String(THEMES[i] === values.theme)))
+    font.value = values.font
+    size.textContent = `${values.fontSize}px`
+    lineHeight.value = String(values.lineHeight)
+    lineHeightValue.textContent = values.lineHeight.toFixed(1)
+    lineLength.value = String(values.lineLength)
+    lineLengthValue.textContent = `${values.lineLength} ch`
+    savePositions.checked = values.savePositions
   }
+
+  show(initial)
+  return { show }
 }

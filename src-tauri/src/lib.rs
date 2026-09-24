@@ -15,6 +15,7 @@ use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WebviewUrl, Webvi
 
 const DEFAULT_WIDTH: f64 = 1100.0;
 const DEFAULT_HEIGHT: f64 = 800.0;
+const SHOW_FALLBACK: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The book file shown in each window, by window label. The frontend never
 /// passes file paths: it can only read the book the backend assigned to its
@@ -99,7 +100,13 @@ fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
     if geometry.is_some() && !is_on_screen(&window)? {
         window.center()?;
     }
-    window.show()
+    // The frontend shows the window once its theme is applied, so it never
+    // flashes the wrong colours. Show it anyway if that doesn't happen.
+    std::thread::spawn(move || {
+        std::thread::sleep(SHOW_FALLBACK);
+        let _ = window.show();
+    });
+    Ok(())
 }
 
 /// A saved position can point at a monitor that is no longer connected.

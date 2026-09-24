@@ -89,12 +89,17 @@ const formatAuthor = (author?: Contributor | Contributor[]) =>
 
 const isWebLink = (href: string) => /^https?:/i.test(href)
 
+/** How the app draws the book (see appearance.ts). */
+export interface BookStyle {
+  css: string
+  /** Maximum width of a text column, in px. */
+  columnWidth: number
+}
+
 interface OpenOptions {
   flow: Flow
   lastLocation?: string
-  /** The app's stylesheet for the book (see appearance.ts). */
-  css: string
-  columnWidth: number
+  style: BookStyle
 }
 
 /** A book rendered by foliate-js, with the app's input handling attached. */
@@ -164,8 +169,9 @@ export class BookView {
     return this.flow === 'scrolled' ? LINE_PX : undefined
   }
 
-  /** Restyles the book, keeping the reading position. */
-  setAppearance(css: string, columnWidth: number) {
+  /** Restyles the book, keeping the reading position. An open note would keep the old style, so it closes. */
+  setStyle({ css, columnWidth }: BookStyle) {
+    this.hideFootnote()
     this.#css = css
     this.view.renderer.setStyles?.(css)
     this.view.renderer.setAttribute('max-inline-size', `${columnWidth}px`)
@@ -190,11 +196,11 @@ export class BookView {
     this.view.remove()
   }
 
-  async #open(file: File, { flow, lastLocation, css, columnWidth }: OpenOptions) {
+  async #open(file: File, { flow, lastLocation, style }: OpenOptions) {
     const { view } = this
     await view.open(file)
     this.flow = flow
-    this.setAppearance(css, columnWidth)
+    this.setStyle(style)
     this.#updateColumns()
     twoColumns.addEventListener('change', this.#updateColumns)
 

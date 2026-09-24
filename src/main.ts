@@ -1,10 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { bookCss, nextTheme, readAppearance, stepFontSize, type Appearance } from './appearance'
+import {
+  bookCss,
+  columnWidthPx,
+  isAppearanceKey,
+  nextTheme,
+  oneOf,
+  readAppearance,
+  stepFontSize,
+  type ResolvedTheme,
+} from './appearance'
 import { commandFor, type Command } from './keys'
-import { BookView, type Flow, type Relocation } from './reader'
-import { createSettingsPanel } from './settings-panel'
+import { BookView, type BookStyle, type Flow, type Relocation } from './reader'
+import { createSettingsPanel, type PanelValues } from './settings-panel'
 import { createTOCView } from './vendor/foliate-js/ui/tree.js'
 
 interface Position {
@@ -23,15 +32,16 @@ interface PendingSave {
   position: Position
 }
 
-interface Settings extends Appearance {
+interface Settings extends PanelValues {
   bookFlow: Flow
-  savePositions: boolean
 }
+
+const FLOWS: readonly Flow[] = ['paginated', 'scrolled']
 
 function readSettings(stored: Record<string, unknown>): Settings {
   return {
     ...readAppearance(stored),
-    bookFlow: stored.bookFlow === 'scrolled' ? 'scrolled' : 'paginated',
+    bookFlow: oneOf(stored.bookFlow, FLOWS, 'paginated'),
     savePositions: stored.savePositions !== false,
   }
 }
@@ -93,8 +103,7 @@ async function openCurrentBook() {
     book = await BookView.open($('stage'), $('footnote'), file, {
       flow: settings.bookFlow,
       lastLocation: info.position?.cfi,
-      css: currentBookCss(),
-      columnWidth: settings.columnWidth,
+      style: currentBookStyle(),
     }, {
       relocate: onRelocate,
       key: onKey,
@@ -167,11 +176,20 @@ const settingsOpen = () => !$('settings').hidden
 /** Commands that still work while a side panel has the keyboard. */
 const PANEL_COMMANDS: Command[] = ['toc', 'settings', 'escape', 'fullscreen', 'cycleTheme', 'fontBigger', 'fontSmaller']
 
+/** Whether a panel should get the key instead of the reader. */
+function panelHasKeyboard(e: KeyboardEvent, command: Command) {
+  const target = e.target instanceof Element ? e.target : null
+  // Letters pick options in a focused list; only Escape leaves it.
+  if (target?.closest('select, input') && command !== 'escape') return true
+  // The contents list is modal. Settings stay beside the book, so keys pressed
+  // in the book (its iframes) still turn pages.
+  const inPanel = tocOpen() || (settingsOpen() && !!target && $('settings').contains(target))
+  return inPanel && !PANEL_COMMANDS.includes(command)
+}
+
 function onKey(e: KeyboardEvent) {
   const command = commandFor(e)
-  if (!command) return
-  // While a panel is open, arrows, Home/End and so on work its controls.
-  if ((tocOpen() || settingsOpen()) && !PANEL_COMMANDS.includes(command)) return
+  if (!command || panelHasKeyboard(e, command)) return
   e.preventDefault()
   runCommand(command).catch(console.error)
 }
@@ -258,33 +276,36 @@ function closePanels() {
 // ---- Settings and appearance ------------------------------------------------
 
 const systemDark = matchMedia('(prefers-color-scheme: dark)')
-const settingsPanel = createSettingsPanel($('settings'), changes => void changeSettings(changes))
+const settingsPanel = createSettingsPanel($('settings'), settings, changes => void changeSettings(changes))
 
-/** Sets the app theme; "system" resolves to light or dark. */
+const resolvedTheme = (): ResolvedTheme =>
+  settings.theme === 'system' ? (systemDark.matches ? 'dark' : 'light') : settings.theme
+
+/** Sets the app theme (style.css defines the colours per data-theme). */
 function applyTheme() {
-  const { theme } = settings
-  document.documentElement.dataset.theme = theme === 'system' ? (systemDark.matches ? 'dark' : 'light') : theme
+  document.documentElement.dataset.theme = resolvedTheme()
 }
 
 /** The book is drawn with the app theme's colours, so the two always match. */
-function currentBookCss() {
+function currentBookStyle(): BookStyle {
   const root = getComputedStyle(document.documentElement)
-  return bookCss(settings, {
-    scheme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+  const colors = {
+    theme: resolvedTheme(),
     text: root.getPropertyValue('--fg').trim(),
     link: root.getPropertyValue('--link').trim(),
-  })
+  }
+  return { css: bookCss(settings, colors), columnWidth: columnWidthPx(settings) }
 }
 
 function restyle() {
   applyTheme()
-  book?.setAppearance(currentBookCss(), settings.columnWidth)
-  if (settingsOpen()) settingsPanel.show(settings)
+  book?.setStyle(currentBookStyle())
 }
 
 async function changeSettings(changes: Partial<Settings>) {
   settings = { ...settings, ...changes }
-  restyle()
+  if (Object.keys(changes).some(isAppearanceKey)) restyle()
+  if (settingsOpen()) settingsPanel.show(settings)
   await invoke('update_settings', { changes }).catch(console.error)
 }
 
@@ -321,9 +342,11 @@ appWindow.listen('book-changed', () => openCurrentBook())
 appWindow.onCloseRequested(flushSave)
 systemDark.addEventListener('change', () => settings.theme === 'system' && restyle())
 
-applyTheme()
+// The window starts hidden and is shown once the saved theme is applied,
+// so it never flashes the wrong colours (the backend shows it anyway if this fails).
 settingsLoaded.then(loaded => {
   settings = loaded
   applyTheme()
+  void appWindow.show().catch(console.error)
   return openCurrentBook()
 })
