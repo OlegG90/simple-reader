@@ -1,3 +1,4 @@
+use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::System::Console::{
     AttachConsole, GetStdHandle, WriteConsoleInputW, ATTACH_PARENT_PROCESS, INPUT_RECORD, INPUT_RECORD_0, KEY_EVENT,
     KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
@@ -15,9 +16,12 @@ pub fn print(text: &str) {
     }
 }
 
-/// The shell doesn't wait for a GUI app, so its prompt is already showing
-/// above our text and the cursor looks stuck after it. An Enter in the
-/// console's input makes the shell draw a fresh prompt below.
+/// An interactive shell doesn't wait for a GUI app, so its prompt is already
+/// showing above our text and the cursor looks stuck after it. An Enter in
+/// the console's input makes the shell draw a fresh prompt below.
+///
+/// Known trade-off: where the caller does wait (a .bat file, `start /wait`),
+/// the Enter reaches whatever reads input next, such as a later `pause`.
 fn press_enter() {
     let key = |down| INPUT_RECORD {
         EventType: KEY_EVENT as u16,
@@ -25,8 +29,8 @@ fn press_enter() {
             KeyEvent: KEY_EVENT_RECORD {
                 bKeyDown: down,
                 wRepeatCount: 1,
-                wVirtualKeyCode: 0x0D, // VK_RETURN
-                wVirtualScanCode: 0x1C,
+                wVirtualKeyCode: 0x0D,  // VK_RETURN
+                wVirtualScanCode: 0x1C, // the Enter key's scan code
                 uChar: KEY_EVENT_RECORD_0 { UnicodeChar: '\r' as u16 },
                 dwControlKeyState: 0,
             },
@@ -38,8 +42,9 @@ fn press_enter() {
     // after AttachConsole the standard input handle is the borrowed console's.
     unsafe {
         let input = GetStdHandle(STD_INPUT_HANDLE);
-        if !input.is_null() {
-            WriteConsoleInputW(input, events.as_ptr(), events.len() as u32, &mut written);
+        if !input.is_null() && input != INVALID_HANDLE_VALUE {
+            // Best effort: if it fails, the user presses Enter themselves.
+            let _ = WriteConsoleInputW(input, events.as_ptr(), events.len() as u32, &mut written);
         }
     }
 }

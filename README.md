@@ -13,7 +13,8 @@ Take `sreader-x64.exe` (most PCs) or `sreader-arm64.exe` (Windows on ARM, e.g. S
 [latest release](https://github.com/OlegG90/simple-reader/releases/latest), rename it to `sreader.exe`
 and put it in a folder you keep. Settings and reading positions are stored in `sreader.json` next to it
 (or in `%APPDATA%\simple-reader` if that folder is read-only). To open books by double-click, run
-`sreader --register` once from that folder; run it again if you move the exe.
+`.\sreader --register` once in that folder (PowerShell needs the `.\`; the full path works anywhere);
+run it again if you move the exe.
 
 ## Usage
 
