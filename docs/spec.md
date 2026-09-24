@@ -135,7 +135,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 - **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`.
 - **Plugins:** single-instance, CLI arguments, dialog.
 - **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it locally.
-- **CI:** GitHub Actions builds `sreader.exe` on `v*` tags and attaches it to the GitHub Release.
+- **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags and attaches both to the GitHub Release.
 - **Icon:** a simple open-book icon (SVG → ICO), kept in the repo so it can be replaced.
 - The exe is unsigned, so SmartScreen asks for confirmation on first run ("More info" → "Run anyway").
 
