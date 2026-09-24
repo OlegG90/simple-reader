@@ -1,0 +1,155 @@
+mod cli;
+mod data_dir;
+mod fingerprint;
+mod store;
+
+use serde::Serialize;
+use serde_json::{Map, Value};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+use store::{Position, Store, WindowGeometry};
+use tauri::ipc::Response;
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, Window, WindowEvent};
+
+const DEFAULT_WIDTH: f64 = 1100.0;
+const DEFAULT_HEIGHT: f64 = 800.0;
+
+/// The book file shown in each window, by window label. The frontend never
+/// passes file paths: it can only read the book the backend assigned to its
+/// window, so book content cannot make the app read arbitrary files.
+#[derive(Default)]
+struct Books(Mutex<HashMap<String, PathBuf>>);
+
+impl Books {
+    fn assign(&self, label: &str, path: PathBuf) {
+        self.0.lock().unwrap().insert(label.to_string(), path);
+    }
+
+    fn path_of(&self, label: &str) -> Result<PathBuf, String> {
+        self.0.lock().unwrap().get(label).cloned().ok_or_else(|| "No book is open".into())
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BookInfo {
+    file_name: String,
+    fingerprint: String,
+    position: Option<Position>,
+}
+
+#[tauri::command(async)]
+fn current_book(window: Window, books: State<Books>, store: State<Store>) -> Result<Option<BookInfo>, String> {
+    let Ok(path) = books.path_of(window.label()) else {
+        return Ok(None);
+    };
+    let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let fingerprint = fingerprint::fingerprint(&path).map_err(|e| format!("{file_name}: {e}"))?;
+    let position = store.read(|s| s.positions.get(&fingerprint).cloned());
+    Ok(Some(BookInfo { file_name, fingerprint, position }))
+}
+
+#[tauri::command(async)]
+fn read_book(window: Window, books: State<Books>) -> Result<Response, String> {
+    let path = books.path_of(window.label())?;
+    std::fs::read(path).map(Response::new).map_err(|e| e.to_string())
+}
+
+/// Takes the fingerprint from the frontend so a position that is still
+/// pending when another book replaces it is saved under the right book.
+#[tauri::command(async)]
+fn save_position(store: State<Store>, fingerprint: String, position: Position) -> Result<(), String> {
+    store
+        .update(|s| {
+            s.positions.insert(fingerprint, position);
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_settings(store: State<Store>) -> Map<String, Value> {
+    store.read(|s| s.settings.clone())
+}
+
+/// Merges changed settings, so windows never overwrite each other's changes.
+#[tauri::command(async)]
+fn update_settings(store: State<Store>, changes: Map<String, Value>) -> Result<(), String> {
+    store.update(|s| s.settings.extend(changes)).map_err(|e| e.to_string())
+}
+
+fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
+    static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
+    let label = format!("reader-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed));
+    if let Some(file) = file {
+        app.state::<Books>().assign(&label, file);
+    }
+
+    let geometry = app.state::<Store>().read(|s| s.window.clone());
+    let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
+        .title("Simple Reader")
+        .min_inner_size(400.0, 300.0)
+        .visible(false);
+    builder = match &geometry {
+        Some(g) => builder.inner_size(g.width, g.height).position(g.x, g.y).maximized(g.maximized),
+        None => builder.inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT).center(),
+    };
+    let window = builder.build()?;
+    if geometry.is_some() && !is_on_screen(&window)? {
+        window.center()?;
+    }
+    window.show()
+}
+
+/// A saved position can point at a monitor that is no longer connected.
+fn is_on_screen(window: &tauri::WebviewWindow) -> tauri::Result<bool> {
+    let pos = window.outer_position()?;
+    Ok(window.monitor_from_point(pos.x.into(), pos.y.into())?.is_some())
+}
+
+fn remember_geometry(window: &Window) -> tauri::Result<()> {
+    if window.is_fullscreen()? {
+        return Ok(());
+    }
+    let maximized = window.is_maximized()?;
+    let scale = window.scale_factor()?;
+    let pos = window.outer_position()?.to_logical::<f64>(scale);
+    let size = window.inner_size()?.to_logical::<f64>(scale);
+    let store = window.state::<Store>();
+    store.update(|s| {
+        // A maximized window keeps the size it will restore to.
+        s.window = match (&s.window, maximized) {
+            (Some(prev), true) => Some(WindowGeometry { maximized, ..prev.clone() }),
+            _ => Some(WindowGeometry { x: pos.x, y: pos.y, width: size.width, height: size.height, maximized }),
+        };
+    })?;
+    Ok(())
+}
+
+pub fn run() {
+    let launch = cli::parse(std::env::args().skip(1));
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .manage(Store::load(data_dir::default_state_file()))
+        .manage(Books::default())
+        .invoke_handler(tauri::generate_handler![current_book, read_book, save_position, get_settings, update_settings])
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { .. } => {
+                let _ = remember_geometry(window);
+            }
+            WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
+                if let Some(path) = paths.first() {
+                    window.state::<Books>().assign(window.label(), path.clone());
+                    let _ = window.app_handle().emit_to(window.label(), "book-changed", ());
+                }
+            }
+            _ => {}
+        })
+        .setup(move |app| {
+            open_window(app.handle(), launch.file)?;
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running Simple Reader");
+}

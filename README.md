@@ -17,6 +17,19 @@ See [docs/spec.md](docs/spec.md) for the full specification.
 
 Early development.
 
+## Development
+
+Requires Node.js, Rust (MSVC toolchain) and Visual Studio Build Tools with the C++ workload.
+
+```
+npm install
+npx tauri dev -- -- samples/alice-in-wonderland.epub  # dev mode with a sample book
+npm test                                          # backend unit tests
+npm run build                                     # src-tauri/target/release/sreader.exe
+```
+
+Sample public-domain books from Project Gutenberg are in [samples/](samples/).
+
 ## License
 
 [MIT](LICENSE)
