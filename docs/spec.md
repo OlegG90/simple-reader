@@ -38,13 +38,15 @@ Bookmarks, highlights and notes, full-text search, dictionary / translation, tex
 |---|---|
 | Theme | Follow Windows (light / dark); manual choice of light, dark, sepia |
 | Font | Georgia (choices: Georgia, Cambria, Segoe UI, Calibri, Publisher default) |
-| Font size | 18–20 px |
-| Line height | 1.5 |
-| Column width / margins | ~70 characters |
+| Font size | 19 px (12–36) |
+| Line height | 1.5 (1.2–2.2) |
+| Line length | ~70 characters (45–100); the column width follows the font size |
 
 Justified text with hyphenation is always on (hyphenation works for the languages WebView2 supports).
 
-Only system fonts are used — no fonts are bundled.
+Only system fonts are used — no fonts are bundled. The chosen font applies to text blocks; code and inline elements the book styles itself (monospace, drop caps) keep their fonts.
+
+In the light theme books keep their own colours; dark and sepia repaint all text in the theme's colours. The app and the book always use the same theme colours, and the saved theme is applied before the window first paints.
 
 ### Navigation
 
@@ -133,7 +135,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 - **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`.
 - **Plugins:** single-instance, CLI arguments, dialog.
 - **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it locally.
-- **CI:** GitHub Actions builds `sreader.exe` on `v*` tags and attaches it to the GitHub Release.
+- **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags and attaches both to the GitHub Release.
 - **Icon:** a simple open-book icon (SVG → ICO), kept in the repo so it can be replaced.
 - The exe is unsigned, so SmartScreen asks for confirmation on first run ("More info" → "Run anyway").
 

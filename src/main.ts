@@ -1,8 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import {
+  bookCss,
+  columnWidthPx,
+  isAppearanceKey,
+  nextTheme,
+  oneOf,
+  readAppearance,
+  stepFontSize,
+  type ResolvedTheme,
+} from './appearance'
 import { commandFor, type Command } from './keys'
-import { BookView, type Flow, type Relocation } from './reader'
+import { BookView, type BookStyle, type Flow, type Relocation } from './reader'
+import { createSettingsPanel, type PanelValues } from './settings-panel'
 import { createTOCView } from './vendor/foliate-js/ui/tree.js'
 
 interface Position {
@@ -21,7 +32,19 @@ interface PendingSave {
   position: Position
 }
 
-type Settings = { bookFlow?: Flow } & Record<string, unknown>
+interface Settings extends PanelValues {
+  bookFlow: Flow
+}
+
+const FLOWS: readonly Flow[] = ['paginated', 'scrolled']
+
+function readSettings(stored: Record<string, unknown>): Settings {
+  return {
+    ...readAppearance(stored),
+    bookFlow: oneOf(stored.bookFlow, FLOWS, 'paginated'),
+    savePositions: stored.savePositions !== false,
+  }
+}
 
 const SAVE_DELAY_MS = 500
 const TOP_EDGE_PX = 48
@@ -30,12 +53,19 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const appWindow = getCurrentWindow()
 const topbar = $('topbar')
 
-// Loaded alongside the first book rather than before it.
-const settingsLoaded = invoke<Settings>('get_settings').catch(e => {
-  console.error(e)
-  return {}
-})
-let settings: Settings = {}
+let settings: Settings = readSettings({})
+// Loads alongside the first book; the backend already set the saved theme
+// before the first paint (see theme_script in lib.rs).
+const settingsReady = invoke<Record<string, unknown>>('get_settings')
+  .catch(e => {
+    console.error(e)
+    return {}
+  })
+  .then(stored => {
+    settings = readSettings(stored)
+    applyTheme()
+    settingsPanel.show(settings)
+  })
 let currentTocHref: string | undefined
 let book: BookView | null = null
 let fingerprint = ''
@@ -47,6 +77,7 @@ let pendingSave: PendingSave | null = null
 let saveTimer: number | undefined
 
 function scheduleSave(save: PendingSave) {
+  if (!settings.savePositions) return
   pendingSave = save
   clearTimeout(saveTimer)
   saveTimer = window.setTimeout(flushSave, SAVE_DELAY_MS)
@@ -75,10 +106,11 @@ async function openCurrentBook() {
     const bytes = await invoke<ArrayBuffer>('read_book')
     // foliate-js detects some formats by extension, so normalise its case.
     const file = new File([bytes], info.fileName.toLowerCase())
-    settings = await settingsLoaded
+    await settingsReady
     book = await BookView.open($('stage'), $('footnote'), file, {
-      flow: settings.bookFlow ?? 'paginated',
+      flow: settings.bookFlow,
       lastLocation: info.position?.cfi,
+      style: currentBookStyle(),
     }, {
       relocate: onRelocate,
       key: onKey,
@@ -95,7 +127,7 @@ async function openCurrentBook() {
   $('toc-author').textContent = book.author
   tocView = createTOCView(book.toc, (href: string) => {
     book?.view.goTo(href).catch(console.error)
-    closeToc()
+    closePanels()
   })
   $('toc-tree').replaceChildren(tocView.element)
   currentTocHref = undefined
@@ -108,7 +140,7 @@ function closeBook() {
   book?.destroy()
   book = null
   tocView = null
-  closeToc()
+  closePanels()
   $('toc-tree').replaceChildren()
   $('hint').hidden = true
   $('error').hidden = true
@@ -146,12 +178,23 @@ function highlightToc(href: string | undefined) {
 // ---- Commands ---------------------------------------------------------------
 
 const tocOpen = () => !$('toc').hidden
+const settingsOpen = () => !$('settings').hidden
+
+/** Commands that still work while a side panel has the keyboard. */
+const PANEL_COMMANDS: Command[] = ['toc', 'settings', 'escape', 'fullscreen', 'cycleTheme', 'fontBigger', 'fontSmaller']
+
+/** Whether a panel should get the key instead of the reader. */
+function panelHasKeyboard(e: KeyboardEvent, command: Command) {
+  const target = e.target instanceof Element ? e.target : null
+  // Letters pick options in a focused list; only Escape leaves it.
+  if (target?.closest('select, input')) return command !== 'escape'
+  // Keys pressed in the book (its iframes) still turn pages beside the settings.
+  return !!target?.closest('#toc, #settings') && !PANEL_COMMANDS.includes(command)
+}
 
 function onKey(e: KeyboardEvent) {
   const command = commandFor(e)
-  if (!command) return
-  // While the contents are open, arrows and Home/End move through the list.
-  if (tocOpen() && !['toc', 'escape', 'fullscreen'].includes(command)) return
+  if (!command || panelHasKeyboard(e, command)) return
   e.preventDefault()
   runCommand(command).catch(console.error)
 }
@@ -162,6 +205,14 @@ async function runCommand(command: Command) {
       return handleEscape()
     case 'fullscreen':
       return appWindow.setFullscreen(!(await appWindow.isFullscreen()))
+    case 'settings':
+      return settingsOpen() ? closePanels() : openSettings()
+    case 'cycleTheme':
+      return changeSettings({ theme: nextTheme(settings.theme) })
+    case 'fontBigger':
+      return changeSettings({ fontSize: stepFontSize(settings.fontSize, 1) })
+    case 'fontSmaller':
+      return changeSettings({ fontSize: stepFontSize(settings.fontSize, -1) })
   }
   if (!book) return
   switch (command) {
@@ -182,7 +233,7 @@ async function runCommand(command: Command) {
     case 'chapterEnd':
       return book.goToChapterEdge('end')
     case 'toc':
-      return tocOpen() ? closeToc() : openToc()
+      return tocOpen() ? closePanels() : openToc()
     case 'toggleFlow':
       return toggleFlow()
   }
@@ -190,16 +241,15 @@ async function runCommand(command: Command) {
 
 async function handleEscape() {
   if (!$('footnote').hidden) book?.hideFootnote()
-  else if (tocOpen()) closeToc()
+  else if (tocOpen() || settingsOpen()) closePanels()
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
 
 async function toggleFlow() {
   if (!book) return
   book.flow = book.flow === 'paginated' ? 'scrolled' : 'paginated'
-  settings = { ...settings, bookFlow: book.flow }
   updateFlowButton()
-  await invoke('update_settings', { changes: { bookFlow: book.flow } })
+  await changeSettings({ bookFlow: book.flow })
 }
 
 function updateFlowButton() {
@@ -207,15 +257,73 @@ function updateFlowButton() {
 }
 
 function openToc() {
+  closePanels()
   $('scrim').hidden = false
   $('toc').hidden = false
   const current = $('toc-tree').querySelector<HTMLElement>('[aria-current]')
   ;(current ?? $('toc-tree').querySelector<HTMLElement>('[role="treeitem"]'))?.focus()
 }
 
-function closeToc() {
+/** Settings open without the scrim, so changes show on the book right away. */
+function openSettings() {
+  closePanels()
+  $('settings').hidden = false
+  $('settings').querySelector<HTMLElement>('button, select, input')?.focus()
+}
+
+function closePanels() {
   $('scrim').hidden = true
   $('toc').hidden = true
+  $('settings').hidden = true
+}
+
+// ---- Settings and appearance ------------------------------------------------
+
+const systemDark = matchMedia('(prefers-color-scheme: dark)')
+const settingsPanel = createSettingsPanel($('settings'), settings, changes => void changeSettings(changes))
+
+const resolvedTheme = (): ResolvedTheme =>
+  settings.theme === 'system' ? (systemDark.matches ? 'dark' : 'light') : settings.theme
+
+/** Sets the app theme (style.css defines the colours per data-theme). */
+function applyTheme() {
+  document.documentElement.dataset.theme = resolvedTheme()
+}
+
+/** The book is drawn with the app theme's colours, so the two always match. */
+function currentBookStyle(): BookStyle {
+  const root = getComputedStyle(document.documentElement)
+  const colors = {
+    theme: resolvedTheme(),
+    text: root.getPropertyValue('--fg').trim(),
+    link: root.getPropertyValue('--link').trim(),
+  }
+  return { css: bookCss(settings, colors), columnWidth: columnWidthPx(settings) }
+}
+
+function restyle() {
+  applyTheme()
+  book?.setStyle(currentBookStyle())
+}
+
+let pendingSettings: Partial<Settings> = {}
+let settingsTimer: number | undefined
+
+/** Applies changes at once; saving waits for a pause, e.g. the end of a slider drag. */
+function changeSettings(changes: Partial<Settings>) {
+  settings = { ...settings, ...changes }
+  if (Object.keys(changes).some(isAppearanceKey)) restyle()
+  settingsPanel.show(settings)
+  pendingSettings = { ...pendingSettings, ...changes }
+  clearTimeout(settingsTimer)
+  settingsTimer = window.setTimeout(flushSettings, SAVE_DELAY_MS)
+}
+
+async function flushSettings() {
+  clearTimeout(settingsTimer)
+  const changes = pendingSettings
+  pendingSettings = {}
+  if (Object.keys(changes).length) await invoke('update_settings', { changes }).catch(console.error)
 }
 
 // ---- Edge controls ----------------------------------------------------------
@@ -237,8 +345,9 @@ function onPointer(y: number) {
 
 document.addEventListener('keydown', onKey)
 document.addEventListener('mousemove', e => onPointer(e.clientY))
-$('scrim').addEventListener('click', closeToc)
+$('scrim').addEventListener('click', closePanels)
 $('toc-button').addEventListener('click', () => runCommand('toc'))
+$('settings-button').addEventListener('click', () => runCommand('settings'))
 $('flow-button').addEventListener('click', () => runCommand('toggleFlow'))
 $('fullscreen-button').addEventListener('click', () => runCommand('fullscreen'))
 $('progress').addEventListener('click', e => {
@@ -247,6 +356,9 @@ $('progress').addEventListener('click', e => {
 
 appWindow.listen('book-changed', () => openCurrentBook())
 // flushSave never throws, so a failed save cannot keep the window open.
-appWindow.onCloseRequested(flushSave)
+appWindow.onCloseRequested(async () => {
+  await Promise.all([flushSave(), flushSettings()])
+})
+systemDark.addEventListener('change', () => settings.theme === 'system' && restyle())
 
 openCurrentBook()

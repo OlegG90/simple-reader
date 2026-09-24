@@ -9,6 +9,10 @@ export type Command =
   | 'chapterEnd'
   | 'toc'
   | 'toggleFlow'
+  | 'settings'
+  | 'cycleTheme'
+  | 'fontBigger'
+  | 'fontSmaller'
   | 'fullscreen'
   | 'escape'
 
@@ -16,8 +20,21 @@ type Key = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey' | 'altKey' | 'meta
 
 /** Maps a key press to a reader command; `null` leaves it to the browser. */
 export function commandFor(e: Key): Command | null {
-  if (e.ctrlKey || e.altKey || e.metaKey) return null
-  switch (e.key) {
+  if (e.altKey || e.metaKey) return null
+  if (e.ctrlKey) {
+    switch (e.key) {
+      case '=':
+      case '+':
+        return 'fontBigger'
+      case '-':
+        return 'fontSmaller'
+      case ',':
+        return 'settings'
+    }
+    return null
+  }
+  // Letters work with or without Shift / Caps Lock.
+  switch (e.key.length === 1 ? e.key.toLowerCase() : e.key) {
     case 'ArrowLeft':
       return 'left'
     case 'ArrowRight':
@@ -37,11 +54,13 @@ export function commandFor(e: Key): Command | null {
     case 'End':
       return 'chapterEnd'
     case 't':
-    case 'T':
       return 'toc'
     case 'm':
-    case 'M':
       return 'toggleFlow'
+    case 's':
+      return 'settings'
+    case 'd':
+      return 'cycleTheme'
     case 'F11':
       return 'fullscreen'
     case 'Escape':
