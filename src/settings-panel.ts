@@ -14,8 +14,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: object = {}, .
   return node
 }
 
-function field(label: string, control: HTMLElement, value?: HTMLElement) {
-  return el('div', { className: 'field' }, el('span', { className: 'label' }, label), control, ...(value ? [value] : []))
+function field(label: string, ...controls: HTMLElement[]) {
+  return el('div', { className: 'field' }, el('span', { className: 'label' }, label), ...controls)
 }
 
 function range({ min, max, step }: Range) {
@@ -68,7 +68,7 @@ export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onC
     lineHeight.value = String(values.lineHeight)
     lineHeightValue.textContent = values.lineHeight.toFixed(1)
     lineLength.value = String(values.lineLength)
-    lineLengthValue.textContent = `${values.lineLength} ch`
+    lineLengthValue.textContent = `≈${values.lineLength} chars`
     savePositions.checked = values.savePositions
   }
 

@@ -234,22 +234,18 @@ button:hover {
 
 #settings .field {
   display: grid;
-  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 6px 8px;
+}
+
+/* A slider with its value beside it */
+#settings .field:has(> output) {
+  grid-template-columns: 1fr auto;
 }
 
 #settings .label {
   grid-column: 1 / -1;
   color: var(--muted);
-}
-
-#settings .field > :not(.label, output) {
-  grid-column: 1;
-}
-
-#settings .field:not(:has(output)) > :not(.label) {
-  grid-column: 1 / -1;
 }
 
 #settings select {

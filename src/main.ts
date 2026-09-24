@@ -53,13 +53,19 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const appWindow = getCurrentWindow()
 const topbar = $('topbar')
 
-const settingsLoaded = invoke<Record<string, unknown>>('get_settings')
+let settings: Settings = readSettings({})
+// Loads alongside the first book; the backend already set the saved theme
+// before the first paint (see theme_script in lib.rs).
+const settingsReady = invoke<Record<string, unknown>>('get_settings')
   .catch(e => {
     console.error(e)
     return {}
   })
-  .then(readSettings)
-let settings: Settings = readSettings({})
+  .then(stored => {
+    settings = readSettings(stored)
+    applyTheme()
+    settingsPanel.show(settings)
+  })
 let currentTocHref: string | undefined
 let book: BookView | null = null
 let fingerprint = ''
@@ -100,6 +106,7 @@ async function openCurrentBook() {
     const bytes = await invoke<ArrayBuffer>('read_book')
     // foliate-js detects some formats by extension, so normalise its case.
     const file = new File([bytes], info.fileName.toLowerCase())
+    await settingsReady
     book = await BookView.open($('stage'), $('footnote'), file, {
       flow: settings.bookFlow,
       lastLocation: info.position?.cfi,
@@ -180,11 +187,9 @@ const PANEL_COMMANDS: Command[] = ['toc', 'settings', 'escape', 'fullscreen', 'c
 function panelHasKeyboard(e: KeyboardEvent, command: Command) {
   const target = e.target instanceof Element ? e.target : null
   // Letters pick options in a focused list; only Escape leaves it.
-  if (target?.closest('select, input') && command !== 'escape') return true
-  // The contents list is modal. Settings stay beside the book, so keys pressed
-  // in the book (its iframes) still turn pages.
-  const inPanel = tocOpen() || (settingsOpen() && !!target && $('settings').contains(target))
-  return inPanel && !PANEL_COMMANDS.includes(command)
+  if (target?.closest('select, input')) return command !== 'escape'
+  // Keys pressed in the book (its iframes) still turn pages beside the settings.
+  return !!target?.closest('#toc, #settings') && !PANEL_COMMANDS.includes(command)
 }
 
 function onKey(e: KeyboardEvent) {
@@ -262,7 +267,6 @@ function openToc() {
 /** Settings open without the scrim, so changes show on the book right away. */
 function openSettings() {
   closePanels()
-  settingsPanel.show(settings)
   $('settings').hidden = false
   $('settings').querySelector<HTMLElement>('button, select, input')?.focus()
 }
@@ -302,11 +306,24 @@ function restyle() {
   book?.setStyle(currentBookStyle())
 }
 
-async function changeSettings(changes: Partial<Settings>) {
+let pendingSettings: Partial<Settings> = {}
+let settingsTimer: number | undefined
+
+/** Applies changes at once; saving waits for a pause, e.g. the end of a slider drag. */
+function changeSettings(changes: Partial<Settings>) {
   settings = { ...settings, ...changes }
   if (Object.keys(changes).some(isAppearanceKey)) restyle()
-  if (settingsOpen()) settingsPanel.show(settings)
-  await invoke('update_settings', { changes }).catch(console.error)
+  settingsPanel.show(settings)
+  pendingSettings = { ...pendingSettings, ...changes }
+  clearTimeout(settingsTimer)
+  settingsTimer = window.setTimeout(flushSettings, SAVE_DELAY_MS)
+}
+
+async function flushSettings() {
+  clearTimeout(settingsTimer)
+  const changes = pendingSettings
+  pendingSettings = {}
+  if (Object.keys(changes).length) await invoke('update_settings', { changes }).catch(console.error)
 }
 
 // ---- Edge controls ----------------------------------------------------------
@@ -339,14 +356,9 @@ $('progress').addEventListener('click', e => {
 
 appWindow.listen('book-changed', () => openCurrentBook())
 // flushSave never throws, so a failed save cannot keep the window open.
-appWindow.onCloseRequested(flushSave)
+appWindow.onCloseRequested(async () => {
+  await Promise.all([flushSave(), flushSettings()])
+})
 systemDark.addEventListener('change', () => settings.theme === 'system' && restyle())
 
-// The window starts hidden and is shown once the saved theme is applied,
-// so it never flashes the wrong colours (the backend shows it anyway if this fails).
-settingsLoaded.then(loaded => {
-  settings = loaded
-  applyTheme()
-  void appWindow.show().catch(console.error)
-  return openCurrentBook()
-})
+openCurrentBook()

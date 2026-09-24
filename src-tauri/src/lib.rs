@@ -15,7 +15,6 @@ use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WebviewUrl, Webvi
 
 const DEFAULT_WIDTH: f64 = 1100.0;
 const DEFAULT_HEIGHT: f64 = 800.0;
-const SHOW_FALLBACK: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The book file shown in each window, by window label. The frontend never
 /// passes file paths: it can only read the book the backend assigned to its
@@ -87,10 +86,11 @@ fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
         app.state::<Books>().assign(&label, file);
     }
 
-    let geometry = app.state::<Store>().read(|s| s.window.clone());
+    let (geometry, theme) = app.state::<Store>().read(|s| (s.window.clone(), s.settings.get("theme").cloned()));
     let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::default())
         .title("Simple Reader")
         .min_inner_size(400.0, 300.0)
+        .initialization_script(theme_script(theme.as_ref().and_then(|t| t.as_str())))
         .visible(false);
     builder = match &geometry {
         Some(g) => builder.inner_size(g.width, g.height).position(g.x, g.y).maximized(g.maximized),
@@ -100,13 +100,23 @@ fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
     if geometry.is_some() && !is_on_screen(&window)? {
         window.center()?;
     }
-    // The frontend shows the window once its theme is applied, so it never
-    // flashes the wrong colours. Show it anyway if that doesn't happen.
-    std::thread::spawn(move || {
-        std::thread::sleep(SHOW_FALLBACK);
-        let _ = window.show();
-    });
-    Ok(())
+    window.show()
+}
+
+/// Sets the saved theme before the first paint so the window never flashes
+/// the wrong colours; the frontend takes over once its settings load.
+fn theme_script(theme: Option<&str>) -> String {
+    let resolved = match theme {
+        Some(t @ ("light" | "dark" | "sepia")) => format!("'{t}'"),
+        _ => "matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'".into(),
+    };
+    // The script may run before <html> exists; then wait for it.
+    format!(
+        "(() => {{
+            const apply = () => !!document.documentElement && !!(document.documentElement.dataset.theme = {resolved});
+            if (!apply()) new MutationObserver((_, o) => apply() && o.disconnect()).observe(document, {{ childList: true }});
+        }})();"
+    )
 }
 
 /// A saved position can point at a monitor that is no longer connected.
@@ -159,4 +169,23 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Simple Reader");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::theme_script;
+
+    #[test]
+    fn theme_script_uses_known_themes() {
+        assert!(theme_script(Some("sepia")).contains("dataset.theme = 'sepia'"));
+    }
+
+    #[test]
+    fn theme_script_falls_back_to_the_system_theme() {
+        for theme in [None, Some("system"), Some("'; alert(1); '")] {
+            let script = theme_script(theme);
+            assert!(script.contains("prefers-color-scheme"), "{script}");
+            assert!(!script.contains("alert"), "{script}");
+        }
+    }
 }

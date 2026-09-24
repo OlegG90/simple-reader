@@ -174,7 +174,10 @@ export class BookView {
     this.hideFootnote()
     this.#css = css
     this.view.renderer.setStyles?.(css)
-    this.view.renderer.setAttribute('max-inline-size', `${columnWidth}px`)
+    // Every change to this attribute re-lays the whole book out.
+    const width = `${columnWidth}px`
+    if (this.view.renderer.getAttribute('max-inline-size') !== width)
+      this.view.renderer.setAttribute('max-inline-size', width)
   }
 
   goToChapterEdge(edge: 'start' | 'end') {
