@@ -68,7 +68,8 @@ body {
   inset: 0;
 }
 
-.message {
+/* Start screen (also shows errors) */
+#start {
   position: absolute;
   inset: 0;
   display: flex;
@@ -81,8 +82,75 @@ body {
   font-size: 18px;
 }
 
-.message p {
+#start p {
   margin: 0;
+}
+
+#error {
+  margin-bottom: 28px;
+  padding: 12px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+#start h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+button.link {
+  padding: 0;
+  font-size: inherit;
+  color: var(--link);
+  text-decoration: underline;
+}
+
+button.link:hover {
+  background: none;
+}
+
+#recent {
+  width: min(520px, 100%);
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  text-align: start;
+}
+
+#recent:empty {
+  display: none;
+}
+
+#recent button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: start;
+}
+
+#recent .title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#recent .author,
+#recent .percent {
+  color: var(--muted);
+}
+
+#recent .percent {
+  grid-row: span 2;
+  align-self: center;
+  padding-inline-start: 12px;
+}
+
+#recent .missing {
+  opacity: 0.45;
 }
 
 /* Controls shown near the window edges */

@@ -76,7 +76,9 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - No permanent toolbar. Controls (TOC, settings, progress) appear when the mouse nears an edge or on a hotkey.
 - `F11` toggles full screen.
 - Window size and position are remembered.
-- Each opened file gets its own window.
+- Each file launched from Explorer or the command line gets its own window. `Ctrl+O`, dropping a file and the recent list open the book in the current window.
+- A book that is already open in a window is never opened twice: that window comes forward instead.
+- Settings changed in one window apply to all open windows.
 
 ### Start screen
 
@@ -101,7 +103,7 @@ Launching without a file (`sreader`) shows an empty window with a "Drop a book h
 
 ### Errors
 
-A corrupt or unsupported file shows a message in the window; the app does not crash.
+A corrupt, missing or unsupported file shows a message above the start screen, so another book is one step away; the app does not crash.
 
 ## Command line
 
@@ -114,10 +116,12 @@ sreader --help | --version
 | Option | Meaning |
 |---|---|
 | `<file>` | Open the file in a new window |
-| `--no-save` | Do not save the reading position for this window ("just take a look") |
+| `--no-save` | Do not save the reading position or add to the recent list for this window ("just take a look") |
 | `--data-dir <path>` | Use an explicit data location |
-| `--register` / `--unregister` | Add / remove file associations for `.epub`, `.fb2`, `.fb2.zip`, `.md` under `HKCU` (no admin rights) |
+| `--register` / `--unregister` | Add / remove file associations for `.epub`, `.fb2`, `.fbz`, `.md` under `HKCU` (no admin rights) |
 | `--help` / `--version` | Print to the console the exe was launched from |
+
+`--register` adds Simple Reader to "Open with" and makes it the default only where the user has no default yet; Windows keeps a choice made with "Open with → Always" out of reach of apps. `.fb2.zip` cannot be associated: Windows only looks at the last extension, and taking over `.zip` is not acceptable.
 
 ## Process model
 
@@ -136,7 +140,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 - **Shell:** Tauri 2 (Rust) + WebView2.
 - **Frontend:** plain TypeScript, no framework.
 - **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`.
-- **Plugins:** single-instance, CLI arguments, dialog.
+- **Plugins:** single-instance, dialog, opener. Command-line arguments are parsed by the app itself.
 - **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it locally.
 - **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags and attaches both to the GitHub Release.
 - **Icon:** a simple open-book icon (SVG → ICO), kept in the repo so it can be replaced.

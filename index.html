@@ -10,11 +10,13 @@
   <body>
     <main id="stage"></main>
 
-    <div id="hint" class="message" hidden>
-      <p>Drop a book here</p>
+    <div id="start" hidden>
+      <div id="error" role="alert" hidden></div>
+      <h1>Simple Reader</h1>
+      <p>Drop a book here or <button id="open-button" class="link">open one</button> (Ctrl+O)</p>
       <p class="muted">EPUB, FB2, Markdown</p>
+      <ol id="recent" aria-label="Recent books"></ol>
     </div>
-    <div id="error" class="message" role="alert" hidden></div>
 
     <header id="topbar" class="edge">
       <button id="toc-button" title="Contents (T)">Contents</button>

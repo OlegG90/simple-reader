@@ -11,6 +11,7 @@ import {
   stepFontSize,
   type ResolvedTheme,
 } from './appearance'
+import { el } from './dom'
 import { commandFor, type Command } from './keys'
 import { makeMarkdownBook } from './markdown-book'
 import { BookView, type BookSource, type BookStyle, type Flow, type Relocation } from './reader'
@@ -28,6 +29,7 @@ interface BookInfo {
   markdown: boolean
   fingerprint: string
   position: Position | null
+  noSave: boolean
 }
 
 interface PendingSave {
@@ -75,6 +77,8 @@ const settingsReady = invoke<Record<string, unknown>>('get_settings')
 let currentTocHref: string | undefined
 let book: BookView | null = null
 let fingerprint = ''
+/** `--no-save`: this window keeps no positions (the backend skips recent books too). */
+let noSave = false
 /** Whether the open file is Markdown (which has its own mode and can be reloaded). */
 let markdownOpen = false
 const flowKey = () => (markdownOpen ? 'markdownFlow' : 'bookFlow')
@@ -86,7 +90,7 @@ let pendingSave: PendingSave | null = null
 let saveTimer: number | undefined
 
 function scheduleSave(save: PendingSave) {
-  if (!settings.savePositions) return
+  if (!settings.savePositions || noSave) return
   pendingSave = save
   clearTimeout(saveTimer)
   saveTimer = window.setTimeout(flushSave, SAVE_DELAY_MS)
@@ -119,11 +123,9 @@ async function openCurrentBook(lastLocation?: string) {
   let info: BookInfo | null = null
   try {
     info = await invoke<BookInfo | null>('current_book')
-    if (!info) {
-      $('hint').hidden = false
-      return
-    }
+    if (!info) return await showStartScreen()
     fingerprint = info.fingerprint
+    noSave = info.noSave
     markdownOpen = info.markdown
     const source = await loadBook(info)
     await settingsReady
@@ -139,10 +141,12 @@ async function openCurrentBook(lastLocation?: string) {
     })
   } catch (e) {
     showError(info?.fileName, e)
-    return
+    // The drop hint, Ctrl+O and the recent books stay one step away.
+    return showStartScreen()
   }
   const title = book.title || info.fileName
   void appWindow.setTitle(title).catch(console.error)
+  void invoke('remember_book', { fingerprint, title, author: book.author }).catch(console.error)
   $('toc-title').textContent = title
   $('toc-author').textContent = book.author
   tocView = createTOCView(book.toc, (href: string) => {
@@ -162,10 +166,48 @@ function closeBook() {
   tocView = null
   closePanels()
   $('toc-tree').replaceChildren()
-  $('hint').hidden = true
+  $('start').hidden = true
   $('error').hidden = true
   $('progress').hidden = true
   topbar.classList.remove('shown')
+}
+
+interface RecentBook {
+  key: string
+  title: string
+  author: string
+  fileName: string
+  fraction: number | null
+  exists: boolean
+}
+
+/** The window without a book: a drop hint, Ctrl+O and the recent books. */
+async function showStartScreen() {
+  void appWindow.setTitle('Simple Reader').catch(console.error)
+  const books = await invoke<RecentBook[]>('recent_books').catch((e): RecentBook[] => {
+    console.error(e)
+    return []
+  })
+  $('recent').replaceChildren(...books.map(recentItem))
+  $('start').hidden = false
+}
+
+function recentItem(book: RecentBook) {
+  const span = (className: string, textContent: string) => el('span', { className, textContent })
+  const button = el(
+    'button',
+    book.exists
+      ? { onclick: () => void invoke('open_recent', { key: book.key }).catch(console.error) }
+      : {
+          className: 'missing',
+          title: 'File not found. Click to remove it from the list.',
+          onclick: () => void invoke('forget_recent', { key: book.key }).then(showStartScreen, console.error),
+        },
+    span('title', book.title || book.fileName),
+    span('percent', book.fraction == null ? '' : `${Math.round(book.fraction * 100)}%`),
+    span('author', book.author),
+  )
+  return el('li', {}, button)
 }
 
 function showError(fileName: string | undefined, error: unknown) {
@@ -233,6 +275,10 @@ async function runCommand(command: Command) {
       return changeSettings({ fontSize: stepFontSize(settings.fontSize, 1) })
     case 'fontSmaller':
       return changeSettings({ fontSize: stepFontSize(settings.fontSize, -1) })
+    case 'open':
+      return invoke('pick_book')
+    case 'closeWindow':
+      return appWindow.close()
     case 'reload':
       // Works after a failed reload too (e.g. the editor was still saving).
       return markdownOpen ? openCurrentBook(book?.location) : undefined
@@ -332,11 +378,20 @@ function restyle() {
 let pendingSettings: Partial<Settings> = {}
 let settingsTimer: number | undefined
 
-/** Applies changes at once; saving waits for a pause, e.g. the end of a slider drag. */
-function changeSettings(changes: Partial<Settings>) {
+/** Applies settings in this window: the book's look and mode, and the panel. */
+function applySettings(changes: Partial<Settings>) {
   settings = { ...settings, ...changes }
   if (Object.keys(changes).some(isAppearanceKey)) restyle()
   settingsPanel.show(settings)
+  if (book && book.flow !== settings[flowKey()]) {
+    book.flow = settings[flowKey()]
+    updateFlowButton()
+  }
+}
+
+/** Applies changes made in this window, and saves them after a pause. */
+function changeSettings(changes: Partial<Settings>) {
+  applySettings(changes)
   pendingSettings = { ...pendingSettings, ...changes }
   clearTimeout(settingsTimer)
   settingsTimer = window.setTimeout(flushSettings, SAVE_DELAY_MS)
@@ -371,6 +426,7 @@ document.addEventListener('mousemove', e => onPointer(e.clientY))
 $('scrim').addEventListener('click', closePanels)
 $('toc-button').addEventListener('click', () => runCommand('toc'))
 $('settings-button').addEventListener('click', () => runCommand('settings'))
+$('open-button').addEventListener('click', () => runCommand('open'))
 $('flow-button').addEventListener('click', () => runCommand('toggleFlow'))
 $('fullscreen-button').addEventListener('click', () => runCommand('fullscreen'))
 $('progress').addEventListener('click', e => {
@@ -378,6 +434,11 @@ $('progress').addEventListener('click', e => {
 })
 
 appWindow.listen('book-changed', () => openCurrentBook())
+// Another window changed a setting: apply it here too (it is already saved).
+appWindow.listen<Record<string, unknown>>('settings-changed', ({ payload }) => {
+  const valid = readSettings({ ...settings, ...payload })
+  applySettings(Object.fromEntries(Object.keys(payload).map(k => [k, valid[k as keyof Settings]])))
+})
 // flushSave never throws, so a failed save cannot keep the window open.
 appWindow.onCloseRequested(async () => {
   await Promise.all([flushSave(), flushSettings()])

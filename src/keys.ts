@@ -15,6 +15,8 @@ export type Command =
   | 'fontSmaller'
   | 'fullscreen'
   | 'reload'
+  | 'open'
+  | 'closeWindow'
   | 'escape'
 
 type Key = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey'>
@@ -31,6 +33,12 @@ export function commandFor(e: Key): Command | null {
         return 'fontSmaller'
       case ',':
         return 'settings'
+    }
+    switch (e.key.toLowerCase()) {
+      case 'o':
+        return 'open'
+      case 'w':
+        return 'closeWindow'
     }
     return null
   }

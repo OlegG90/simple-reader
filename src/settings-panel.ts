@@ -1,4 +1,5 @@
 import { FONTS, LINE_HEIGHT, LINE_LENGTH, THEMES, stepFontSize, type Appearance, type Font, type Range, type Theme } from './appearance'
+import { el } from './dom'
 
 /** Everything the settings panel edits. */
 export interface PanelValues extends Appearance {
@@ -7,12 +8,6 @@ export interface PanelValues extends Appearance {
 
 const THEME_LABELS: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark', sepia: 'Sepia' }
 const fontLabel = (font: Font) => (font === 'publisher' ? 'Publisher default' : font)
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: object = {}, ...children: (Node | string)[]) {
-  const node: HTMLElementTagNameMap[K] = Object.assign(document.createElement(tag), props)
-  node.append(...children)
-  return node
-}
 
 function field(label: string, ...controls: HTMLElement[]) {
   return el('div', { className: 'field' }, el('span', { className: 'label' }, label), ...controls)

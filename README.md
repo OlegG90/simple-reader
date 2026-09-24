@@ -7,9 +7,20 @@ A minimal, portable e-book reader for Windows. It reads — and does nothing els
 - Remembers your place in every book
 - A single `sreader.exe` — no installer
 
+## Usage
+
 ```
-sreader book.epub
+sreader book.epub            # open a book (each file gets its own window)
+sreader                      # start screen with recent books
+sreader --no-save book.fb2   # just take a look: don't remember the position
+sreader --register           # offer Simple Reader for .epub, .fb2, .fbz and .md (current user)
+sreader --help
 ```
+
+In the app: `←`/`→` turn pages, `T` contents, `S` settings, `M` paginated/scrolled, `D` theme,
+`Ctrl+O` open, `Ctrl+W` close, `F11` full screen, `Esc` close a panel.
+
+The exe is not code-signed, so on first run Windows SmartScreen may ask: choose "More info" → "Run anyway".
 
 See [docs/spec.md](docs/spec.md) for the full specification.
 
