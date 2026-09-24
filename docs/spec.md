@@ -38,13 +38,15 @@ Bookmarks, highlights and notes, full-text search, dictionary / translation, tex
 |---|---|
 | Theme | Follow Windows (light / dark); manual choice of light, dark, sepia |
 | Font | Georgia (choices: Georgia, Cambria, Segoe UI, Calibri, Publisher default) |
-| Font size | 18–20 px |
-| Line height | 1.5 |
-| Column width / margins | ~70 characters |
+| Font size | 19 px (12–36) |
+| Line height | 1.5 (1.2–2.2) |
+| Line length | ~70 characters (45–100); the column width follows the font size |
 
 Justified text with hyphenation is always on (hyphenation works for the languages WebView2 supports).
 
-Only system fonts are used — no fonts are bundled.
+Only system fonts are used — no fonts are bundled. The chosen font applies to text blocks; code and inline elements the book styles itself (monospace, drop caps) keep their fonts.
+
+In the light theme books keep their own colours; dark and sepia repaint all text in the theme's colours. The app and the book always use the same theme colours, and the saved theme is applied before the window first paints.
 
 ### Navigation
 
