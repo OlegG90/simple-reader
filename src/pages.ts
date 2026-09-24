@@ -17,8 +17,8 @@ export interface ChapterLayout {
 export function pageLabels({ page, pages, columns, textColumns }: ChapterLayout): string[] {
   // Screens 1..pages-2 hold text; 0 and pages-1 are the paginator's blank edges.
   const screens = pages - 2
-  if (screens < 1 || columns < 1 || page < 1 || page > screens) return Array(Math.max(columns, 0)).fill('')
+  const onText = page >= 1 && page <= screens
   const total = Math.min(textColumns ?? Infinity, screens * columns)
   const first = (page - 1) * columns + 1
-  return Array.from({ length: columns }, (_, i) => (first + i <= total ? `${first + i} / ${total}` : ''))
+  return Array.from({ length: columns }, (_, i) => (onText && first + i <= total ? `${first + i} / ${total}` : ''))
 }

@@ -32,6 +32,8 @@ interface Renderer extends HTMLElement {
   readonly viewSize: number
   /** Paginated: the width of one screen, the current screen and the chapter's screens (each with a blank one either side). */
   readonly size: number
+  /** 'width' for horizontal pages, 'height' when vertical text is laid out in rows. */
+  readonly sideProp: 'width' | 'height'
   readonly page: number
   readonly pages: number
   /** Paginated: the bottom margin's cell under each column; null when scrolled. */
@@ -251,34 +253,42 @@ export class BookView {
    * Vertical text gets none: there the bottom cells don't match its columns.
    */
   #showPageNumbers() {
-    const { feet, page, pages } = this.view.renderer
+    const renderer = this.view.renderer
+    const { feet, page, pages } = renderer
     if (!feet) return
-    const style = this.#chapterStyle()
-    const vertical = !!style && !style.writingMode.startsWith('horizontal')
+    // The paginator lays vertical text out in rows ('height'); its bottom cells aren't columns.
+    if (renderer.sideProp === 'height') return feet.forEach(foot => (foot.textContent = ''))
     const columns = feet.length
-    const textColumns = style && !vertical && style.direction !== 'rtl' ? this.#textColumns(columns) : undefined
-    const labels = vertical ? [] : pageLabels({ page, pages, columns, textColumns })
-    feet.forEach((foot, i) => (foot.textContent = labels[i] ?? ''))
+    const labels = pageLabels({ page, pages, columns, textColumns: this.#textColumns(columns) })
+    feet.forEach((foot, i) => (foot.textContent = labels[i]))
   }
 
-  #chapterStyle() {
-    const doc = this.view.renderer.getContents()[0]?.doc
-    return doc?.defaultView?.getComputedStyle(doc.documentElement)
-  }
+  /** The last measurement, kept until the chapter or its layout changes. */
+  #measured: { doc: Document; layout: string; columns: number | undefined } | null = null
 
   /**
-   * How many columns of the chapter hold text (left-to-right text only), so a
-   * half-empty last spread isn't counted as two pages.
+   * How many columns of the chapter hold text, so a half-empty last spread
+   * isn't counted as two pages. Measured the way paginator.expand() sizes
+   * the chapter, in either text direction.
    */
   #textColumns(columns: number) {
-    const doc = this.view.renderer.getContents()[0]?.doc
+    const renderer = this.view.renderer
+    const doc = renderer.getContents()[0]?.doc
     if (!doc) return undefined
+    const layout = `${renderer.pages}:${renderer.size}:${columns}`
+    if (this.#measured?.doc === doc && this.#measured.layout === layout) return this.#measured.columns
+
     const text = doc.createRange()
     text.selectNodeContents(doc.body)
-    const textRight = text.getBoundingClientRect().right - doc.documentElement.getBoundingClientRect().left
-    const columnPitch = this.view.renderer.size / columns
+    const textRect = text.getBoundingClientRect()
+    const rootRect = doc.documentElement.getBoundingClientRect()
+    const start = renderer.getAttribute('dir') === 'rtl' ? rootRect.right - textRect.right : textRect.left - rootRect.left
+    const textSize = start + textRect.width
+    const columnPitch = renderer.size / columns
     // Text ending exactly on a column edge must not count the next column.
-    return textRight > 0 && columnPitch > 0 ? Math.ceil(textRight / columnPitch - COLUMN_EDGE_TOLERANCE) : undefined
+    const measured = textSize > 0 && columnPitch > 0 ? Math.ceil(textSize / columnPitch - COLUMN_EDGE_TOLERANCE) : undefined
+    this.#measured = { doc, layout, columns: measured }
+    return measured
   }
 
   #setUpFootnotes() {
