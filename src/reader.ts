@@ -26,6 +26,7 @@ interface Book {
 
 interface Renderer extends HTMLElement {
   setStyles?(css: string): void
+  getContents(): { doc: Document }[]
   goTo(target: { index: number; anchor: () => number }): Promise<void>
 }
 
@@ -99,6 +100,24 @@ const BOOK_CSS = `
     display: none;
   }
 `
+
+/** Footnote pop-ups: note headings (often just the note number) stay small. */
+const NOTE_CSS = `${BOOK_CSS}
+  h1, h2, h3, h4, h5, h6 {
+    font-size: 1em !important;
+    text-align: start !important;
+    margin: 0 !important;
+  }
+  .title {
+    margin: 0 0 0.4em !important;
+  }
+`
+/** The renderer's top and bottom margins around the note text. */
+const NOTE_MARGIN_PX = 16
+/** Extra room so a note that fits never shows a scrollbar. */
+const NOTE_SLACK_PX = 8
+/** Longer notes scroll inside a pop-up of at most this share of the window. */
+const NOTE_MAX_HEIGHT = 0.45
 
 /** Share of the window width that turns pages when clicked. */
 const EDGE_CLICK = 0.2
@@ -247,16 +266,28 @@ export class BookView {
         doc.addEventListener('keydown', k => this.events.key(k))
       })
       note.renderer.setAttribute('flow', 'scrolled')
-      note.renderer.setAttribute('margin', '16px')
+      note.renderer.setAttribute('margin', `${NOTE_MARGIN_PX}px`)
       note.renderer.setAttribute('gap', '6%')
-      note.renderer.setStyles?.(BOOK_CSS)
+      note.renderer.setStyles?.(NOTE_CSS)
       // Lay the note out off-screen so it has a size before it is shown.
       this.footnoteHost.style.visibility = 'hidden'
+      this.footnoteHost.style.height = ''
       this.footnoteHost.hidden = false
       this.footnoteHost.replaceChildren(note)
     })
-    this.#footnotes.addEventListener('render', () => {
-      this.footnoteHost.style.visibility = ''
+    this.#footnotes.addEventListener('render', e => {
+      const { view: note } = (e as CustomEvent<{ view: FoliateView }>).detail
+      const doc = note.renderer.getContents()[0]?.doc
+      if (!doc?.defaultView) {
+        this.footnoteHost.style.visibility = ''
+        return
+      }
+      // Fit the pop-up to the note once it is laid out (and again if it reflows).
+      new doc.defaultView.ResizeObserver(() => {
+        const height = doc.documentElement.getBoundingClientRect().height + 2 * NOTE_MARGIN_PX + NOTE_SLACK_PX
+        this.footnoteHost.style.height = `${Math.min(height, innerHeight * NOTE_MAX_HEIGHT)}px`
+        this.footnoteHost.style.visibility = ''
+      }).observe(doc.documentElement)
     })
   }
 

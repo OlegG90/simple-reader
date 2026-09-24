@@ -200,7 +200,7 @@ button:hover {
   bottom: 32px;
   z-index: 30;
   width: min(640px, calc(100vw - 32px));
-  height: min(320px, 45vh);
+  height: 45vh; /* NOTE_MAX_HEIGHT; shrunk to fit the note */
   transform: translateX(-50%);
   background: var(--panel);
   border: 1px solid var(--line);
