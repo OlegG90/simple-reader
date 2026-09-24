@@ -52,10 +52,8 @@ For the other architecture, add the Rust target first: `rustup target add x86_64
 
 ### Releases
 
-Pushing a tag `vX.Y.Z` that matches the version in `src-tauri/Cargo.toml` runs
-[the release workflow](.github/workflows/release.yml): tests, both builds, and a GitHub Release with
-`sreader-x64.exe` and `sreader-arm64.exe`. Running the workflow by hand builds the same two files as an
-artifact without publishing anything.
+Push a tag `vX.Y.Z` matching the version in `src-tauri/Cargo.toml`; [the release workflow](.github/workflows/release.yml)
+tests, builds both exes and publishes them.
 
 The app icon is generated from [src-tauri/icons/app-icon.svg](src-tauri/icons/app-icon.svg) with
 `npx tauri icon src-tauri/icons/app-icon.svg -o src-tauri/icons` (then delete the non-Windows files).

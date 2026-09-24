@@ -1,4 +1,3 @@
-use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::System::Console::{
     AttachConsole, GetStdHandle, WriteConsoleInputW, ATTACH_PARENT_PROCESS, INPUT_RECORD, INPUT_RECORD_0, KEY_EVENT,
     KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
@@ -40,11 +39,9 @@ fn press_enter() {
     let mut written = 0;
     // SAFETY: `events` outlives the call and `written` is a valid out pointer;
     // after AttachConsole the standard input handle is the borrowed console's.
+    // Best effort: with a bad handle the call just fails, and the user
+    // presses Enter themselves.
     unsafe {
-        let input = GetStdHandle(STD_INPUT_HANDLE);
-        if !input.is_null() && input != INVALID_HANDLE_VALUE {
-            // Best effort: if it fails, the user presses Enter themselves.
-            let _ = WriteConsoleInputW(input, events.as_ptr(), events.len() as u32, &mut written);
-        }
+        WriteConsoleInputW(GetStdHandle(STD_INPUT_HANDLE), events.as_ptr(), events.len() as u32, &mut written);
     }
 }

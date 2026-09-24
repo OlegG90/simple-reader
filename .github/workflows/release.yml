@@ -37,10 +37,6 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
       - run: npm ci
       - run: npm test
       - run: npm run build:x64
