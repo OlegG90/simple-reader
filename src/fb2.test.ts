@@ -3,25 +3,18 @@
 import { File } from 'node:buffer'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 // Guards the FB2 requirements that rely on the vendored foliate-js parser.
 // jsdom lacks Document.xmlEncoding, so these exercise fb2.js's fallback that
 // reads the encoding from the XML declaration; WebView2 has both paths.
 
 let fb2: typeof import('./vendor/foliate-js/fb2.js')
-let view: typeof import('./vendor/foliate-js/view.js')
-const { createObjectURL } = URL
 
 beforeAll(async () => {
   // jsdom has no object URLs; fb2.js creates one for its stylesheet on import.
   URL.createObjectURL = () => 'blob:stub'
   fb2 = await import('./vendor/foliate-js/fb2.js')
-  view = await import('./vendor/foliate-js/view.js')
-})
-
-afterAll(() => {
-  URL.createObjectURL = createObjectURL
 })
 
 const sample = (name: string) => new File([readFileSync(resolve(import.meta.dirname, '../samples', name))], name)
@@ -50,7 +43,8 @@ describe('FB2', () => {
   })
 
   it('opens a zipped UTF-8 book (.fb2.zip)', async () => {
-    const book = await view.makeBook(sample('sample-utf8.fb2.zip'))
+    const { makeBook } = await import('./vendor/foliate-js/view.js')
+    const book = await makeBook(sample('sample-utf8.fb2.zip'))
     expect(book.metadata?.title).toBe('Sample: The Lighthouse')
   })
 })

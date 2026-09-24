@@ -27,6 +27,8 @@ interface Book {
 interface Renderer extends HTMLElement {
   setStyles?(css: string): void
   getContents(): { doc: Document }[]
+  /** In scrolled flow: the laid-out content height, including the margins. */
+  readonly viewSize: number
   goTo(target: { index: number; anchor: () => number }): Promise<void>
 }
 
@@ -112,10 +114,9 @@ const NOTE_CSS = `${BOOK_CSS}
     margin: 0 0 0.4em !important;
   }
 `
-/** The renderer's top and bottom margins around the note text. */
 const NOTE_MARGIN_PX = 16
-/** Extra room so a note that fits never shows a scrollbar. */
-const NOTE_SLACK_PX = 8
+/** The pop-up's border, which box-sizing takes out of its height (see style.css). */
+const NOTE_BORDER_PX = 2
 
 /** Share of the window width that turns pages when clicked. */
 const EDGE_CLICK = 0.2
@@ -143,7 +144,6 @@ interface OpenOptions {
 export class BookView {
   readonly view = document.createElement('foliate-view') as FoliateView
   #footnotes = new FootnoteHandler()
-  #noteResize: ResizeObserver | null = null
   #lastWheel = 0
   #updateColumns = () =>
     this.view.renderer.setAttribute('max-column-count', twoColumns.matches ? '2' : '1')
@@ -214,8 +214,6 @@ export class BookView {
   }
 
   hideFootnote() {
-    this.#noteResize?.disconnect()
-    this.#noteResize = null
     this.footnoteHost.hidden = true
     this.footnoteHost.replaceChildren()
   }
@@ -266,30 +264,23 @@ export class BookView {
         const { doc } = (ev as CustomEvent<{ doc: Document }>).detail
         doc.addEventListener('keydown', k => this.events.key(k))
       })
+      // The renderer re-lays the note out (and relocates) whenever it reflows;
+      // fit the pop-up to it. CSS max-height caps long notes, which then scroll.
+      note.addEventListener('relocate', () => {
+        this.footnoteHost.style.height = `${Math.ceil(note.renderer.viewSize) + NOTE_BORDER_PX}px`
+      })
       note.renderer.setAttribute('flow', 'scrolled')
       note.renderer.setAttribute('margin', `${NOTE_MARGIN_PX}px`)
       note.renderer.setAttribute('gap', '6%')
       note.renderer.setStyles?.(NOTE_CSS)
       // Lay the note out off-screen so it has a size before it is shown.
-      this.#noteResize?.disconnect()
       this.footnoteHost.style.visibility = 'hidden'
       this.footnoteHost.style.height = ''
       this.footnoteHost.hidden = false
       this.footnoteHost.replaceChildren(note)
     })
-    this.#footnotes.addEventListener('render', e => {
-      const { view: note } = (e as CustomEvent<{ view: FoliateView }>).detail
-      const doc = note.renderer.getContents()[0]?.doc
-      const show = () => (this.footnoteHost.style.visibility = '')
-      if (!doc?.defaultView) return show()
-      // Fit the pop-up to the note once it is laid out (and again if it reflows);
-      // CSS max-height caps long notes, which then scroll.
-      this.#noteResize = new doc.defaultView.ResizeObserver(() => {
-        const height = doc.documentElement.getBoundingClientRect().height + 2 * NOTE_MARGIN_PX + NOTE_SLACK_PX
-        this.footnoteHost.style.height = `${height}px`
-        show()
-      })
-      this.#noteResize.observe(doc.documentElement)
+    this.#footnotes.addEventListener('render', () => {
+      this.footnoteHost.style.visibility = ''
     })
   }
 

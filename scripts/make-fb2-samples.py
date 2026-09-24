@@ -9,24 +9,40 @@ from xml.sax.saxutils import escape
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 
 
-def fb2(encoding, lang, title, author, chapters, notes):
+def fb2(encoding, lang, title, author, heading, chapter_names, paragraphs, repeat, notes):
+    """Builds a book whose chapters repeat `paragraphs`.
+
+    `notes` maps (chapter number, paragraph index) to the note text placed there.
+    """
     first, last = author
-    sections = "\n".join(
-        f"<section><title><p>{escape(name)}</p></title>\n"
-        + "\n".join(f"<p>{p}</p>" for p in paragraphs)
-        + "</section>"
-        for name, paragraphs in chapters
-    )
+    note_texts = []
+    sections = []
+    for chapter, name in enumerate(chapter_names, 1):
+        body = []
+        for index, paragraph in enumerate(paragraphs * repeat):
+            text = escape(paragraph)
+            note = notes.get((chapter, index))
+            if note:
+                note_texts.append(note)
+                number = len(note_texts)
+                text += f' <a l:href="#n{number}" type="note">[{number}]</a>'
+            body.append(f"<p>{text}</p>")
+        sections.append(
+            f"<section><title><p>{escape(f'{heading} {chapter}. {name}')}</p></title>\n"
+            + "\n".join(body)
+            + "</section>"
+        )
     note_sections = "\n".join(
-        f'<section id="{nid}"><title><p>{i}</p></title><p>{escape(text)}</p></section>'
-        for i, (nid, text) in enumerate(notes, 1)
+        f'<section id="n{number}"><title><p>{number}</p></title><p>{escape(text)}</p></section>'
+        for number, text in enumerate(note_texts, 1)
     )
+    sections = "\n".join(sections)
     return f"""<?xml version="1.0" encoding="{encoding}"?>
 <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
 <description>
 <title-info>
 <genre>prose</genre>
-<author><first-name>{first}</first-name><last-name>{last}</last-name></author>
+<author><first-name>{escape(first)}</first-name><last-name>{escape(last)}</last-name></author>
 <book-title>{escape(title)}</book-title>
 <lang>{lang}</lang>
 </title-info>
@@ -44,10 +60,6 @@ def fb2(encoding, lang, title, author, chapters, notes):
 """
 
 
-def note(nid, n):
-    return f'<a l:href="#{nid}" type="note">[{n}]</a>'
-
-
 UK_PARAGRAPHS = [
     "Ранок у містечку починався з дзвону на старій вежі. Ґрунтова дорога ще парувала після нічного дощу, "
     "а з пекарні на розі вже пахло свіжим хлібом і кмином.",
@@ -61,23 +73,6 @@ UK_PARAGRAPHS = [
     "вишні вродили, як ніколи раніше.",
 ]
 
-
-def uk_sample():
-    chapters = []
-    for c, name in enumerate(["Ранок", "Бібліотека", "Вечір над річкою"], 1):
-        paragraphs = [escape(p) for p in UK_PARAGRAPHS * 4]
-        if c == 1:
-            paragraphs[0] += " " + note("n1", 1)
-        if c == 2:
-            paragraphs[2] += " " + note("n2", 2)
-        chapters.append((f"Розділ {c}. {name}", paragraphs))
-    notes = [
-        ("n1", "Вежу збудували ще до того, як містечко отримало свою назву."),
-        ("n2", "Євгенія працювала в бібліотеці сорок років і знала напам'ять розташування кожної полиці."),
-    ]
-    return fb2("windows-1251", "uk", "Зразок: Містечко над річкою", ("Тестовий", "Автор"), chapters, notes)
-
-
 EN_PARAGRAPHS = [
     "The lighthouse keeper wrote one line in the logbook every evening, whatever the weather.",
     "On calm nights the line was short. On stormy nights it was still one line, only written more firmly.",
@@ -85,15 +80,23 @@ EN_PARAGRAPHS = [
 ]
 
 
+def uk_sample():
+    return fb2(
+        "windows-1251", "uk", "Зразок: Містечко над річкою", ("Тестовий", "Автор"),
+        "Розділ", ["Ранок", "Бібліотека", "Вечір над річкою"], UK_PARAGRAPHS, 4,
+        {
+            (1, 0): "Вежу збудували ще до того, як містечко отримало свою назву.",
+            (2, 2): "Євгенія працювала в бібліотеці сорок років і знала напам'ять розташування кожної полиці.",
+        },
+    )
+
+
 def en_sample():
-    chapters = []
-    for c, name in enumerate(["The Logbook", "The Storm"], 1):
-        paragraphs = [escape(p) for p in EN_PARAGRAPHS * 6]
-        if c == 1:
-            paragraphs[1] += " " + note("n1", 1)
-        chapters.append((f"Chapter {c}. {name}", paragraphs))
-    notes = [("n1", "The logbook is kept in the museum by the harbour.")]
-    return fb2("utf-8", "en", "Sample: The Lighthouse", ("Sample", "Author"), chapters, notes)
+    return fb2(
+        "utf-8", "en", "Sample: The Lighthouse", ("Sample", "Author"),
+        "Chapter", ["The Logbook", "The Storm"], EN_PARAGRAPHS, 6,
+        {(1, 1): "The logbook is kept in the museum by the harbour."},
+    )
 
 
 if __name__ == "__main__":
