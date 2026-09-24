@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headingsToToc, isLocalPath, isMarkdown, renderMarkdown, stripFrontMatter } from './markdown'
+import { headingsToToc, isLocalPath, renderMarkdown, stripFrontMatter } from './markdown'
 
 describe('stripFrontMatter', () => {
   it('removes a leading YAML block', () => {
@@ -46,6 +46,11 @@ describe('renderMarkdown', () => {
     const { headings } = renderMarkdown('## Setup\n## Setup\n## Setup 1\n')
     expect(headings.map(h => h.id)).toEqual(['setup', 'setup-1', 'setup-1-1'])
   })
+
+  it('uses plain text, with entities decoded, for heading labels', () => {
+    const { headings } = renderMarkdown('## Tom &amp; Jerry `<b>` &nbsp;done &#x27;x&#39; &bogus;\n')
+    expect(headings[0].text).toBe("Tom & Jerry <b>  done 'x' &bogus;")
+  })
 })
 
 describe('headingsToToc', () => {
@@ -77,12 +82,7 @@ describe('headingsToToc', () => {
   })
 })
 
-describe('file and path checks', () => {
-  it('recognises Markdown files', () => {
-    expect(isMarkdown('Notes.MD')).toBe(true)
-    expect(isMarkdown('book.epub')).toBe(false)
-  })
-
+describe('isLocalPath', () => {
   it('tells local image paths from URLs', () => {
     expect(isLocalPath('images/a.png')).toBe(true)
     expect(isLocalPath('../a b.png')).toBe(true)

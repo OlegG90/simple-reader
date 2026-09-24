@@ -1,13 +1,9 @@
+import type { TocItem } from './markdown'
 import './vendor/foliate-js/view.js'
 import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
 
 export type Flow = 'paginated' | 'scrolled'
 
-interface TocItem {
-  label: string
-  href?: string
-  subitems?: TocItem[]
-}
 
 export interface Relocation {
   fraction: number
@@ -26,7 +22,7 @@ interface Book {
 }
 
 /** A book file for foliate-js to parse, or a book object the app built itself (Markdown). */
-export type BookSource = File | object
+export type BookSource = File | Book
 
 interface Renderer extends HTMLElement {
   setStyles?(css: string): void
@@ -232,7 +228,10 @@ export class BookView {
     this.#setUpFootnotes()
 
     // A saved location can stop resolving (e.g. after a Markdown edit); start over then.
-    await view.init({ lastLocation, showTextStart: true }).catch(() => view.init({ showTextStart: true }))
+    await view.init({ lastLocation, showTextStart: true }).catch(error => {
+      if (!lastLocation) throw error
+      return view.init({ showTextStart: true })
+    })
   }
 
   #setUpFootnotes() {

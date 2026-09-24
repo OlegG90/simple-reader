@@ -20,7 +20,7 @@ describe('makeMarkdownBook', () => {
       '[bad](javascript:alert(1))',
     ].join('\n\n')
     const book = await makeMarkdownBook(source, 'a.md', noImages)
-    const html = book.sections[0].createDocument().documentElement.outerHTML
+    const html = (await book.sections[0].createDocument()).documentElement.outerHTML
     expect(html).not.toMatch(/<script|<iframe|onerror|javascript:/i)
     expect(html).toContain('<h1 id="title">Title</h1>')
   })

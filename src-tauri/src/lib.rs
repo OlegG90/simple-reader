@@ -37,6 +37,8 @@ impl Books {
 #[serde(rename_all = "camelCase")]
 struct BookInfo {
     file_name: String,
+    /// Markdown is rendered by the app itself; everything else by foliate-js.
+    markdown: bool,
     fingerprint: String,
     position: Option<Position>,
 }
@@ -49,7 +51,7 @@ fn current_book(window: Window, books: State<Books>, store: State<Store>) -> Res
     let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
     let fingerprint = fingerprint::fingerprint(&path).map_err(|e| format!("{file_name}: {e}"))?;
     let position = store.read(|s| s.positions.get(&fingerprint).cloned());
-    Ok(Some(BookInfo { file_name, fingerprint, position }))
+    Ok(Some(BookInfo { file_name, markdown: paths::is_markdown(&path), fingerprint, position }))
 }
 
 #[tauri::command(async)]

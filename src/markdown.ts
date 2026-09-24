@@ -6,7 +6,7 @@ export interface Heading {
   id: string
 }
 
-export interface RenderedMarkdown {
+interface RenderedMarkdown {
   html: string
   /** H1–H3, in document order, for the table of contents. */
   headings: Heading[]
@@ -14,14 +14,19 @@ export interface RenderedMarkdown {
   title: string
 }
 
-export const isMarkdown = (fileName: string) => fileName.toLowerCase().endsWith('.md')
-
 /** Removes a leading YAML front matter block (`---` … `---` or `...`). */
 export const stripFrontMatter = (source: string) =>
   source.replace(/^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/, '')
 
-const ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" }
-const toPlainText = (html: string) => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, e => ENTITIES[e])
+const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }
+
+/** Decodes the HTML entities Markdown text keeps (named basics and numeric ones). */
+const decodeEntities = (text: string) =>
+  text.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, name: string) => {
+    if (name[0] !== '#') return NAMED_ENTITIES[name.toLowerCase()] ?? entity
+    const code = name[1].toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10)
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity
+  })
 
 const slugify = (text: string) =>
   text
@@ -47,7 +52,7 @@ export function renderMarkdown(source: string): RenderedMarkdown {
     renderer: {
       heading({ tokens, depth }) {
         const inner = this.parser.parseInline(tokens)
-        const text = toPlainText(inner).trim()
+        const text = decodeEntities(this.parser.parseInline(tokens, this.parser.textRenderer)).trim()
         const id = uniqueId(text)
         if (depth <= 3) headings.push({ level: depth, text, id })
         return `<h${depth} id="${id}">${inner}</h${depth}>\n`
@@ -61,7 +66,7 @@ export function renderMarkdown(source: string): RenderedMarkdown {
 
 export interface TocItem {
   label: string
-  href: string
+  href?: string
   subitems?: TocItem[]
 }
 

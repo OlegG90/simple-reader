@@ -23,6 +23,7 @@ const UNSAFE_ELEMENTS = 'script, iframe, frame, frameset, object, embed, base, m
 function sanitize(doc: Document) {
   doc.body.querySelectorAll(UNSAFE_ELEMENTS).forEach(el => el.remove())
   for (const el of doc.body.querySelectorAll('*')) {
+    if (!el.attributes.length) continue
     for (const { name, value } of [...el.attributes]) {
       if (/^on/i.test(name) || /^\s*javascript:/i.test(value)) el.removeAttribute(name)
     }
@@ -30,7 +31,7 @@ function sanitize(doc: Document) {
 }
 
 /** Loads the bytes of an image next to the Markdown file. */
-export type LoadImage = (relativePath: string) => Promise<ArrayBuffer>
+type LoadImage = (relativePath: string) => Promise<ArrayBuffer>
 
 /** Browsers sniff most image types, but an SVG only renders with its type set. */
 const imageBlob = (bytes: ArrayBuffer, path: string) =>
@@ -64,18 +65,23 @@ export async function makeMarkdownBook(source: string, fileName: string, loadIma
     return url
   }
 
+  // Each image file is loaded once, however often it is referenced.
+  const images = new Map<string, Promise<string | null>>()
+  const imageUrl = (path: string) => {
+    if (!images.has(path))
+      images.set(path, loadImage(path).then(bytes => objectUrl(imageBlob(bytes, path)), () => null))
+    return images.get(path)!
+  }
   await Promise.all(
     Array.from(doc.querySelectorAll('img'), async img => {
       const src = img.getAttribute('src') ?? ''
       if (!isLocalPath(src)) return
-      const path = decode(src.split(/[?#]/)[0])
-      const bytes = await loadImage(path).catch(() => null)
-      if (bytes) img.src = objectUrl(imageBlob(bytes, path))
+      const url = await imageUrl(decode(src.split(/[?#]/)[0]))
+      if (url) img.src = url
     }),
   )
 
-  const markup = `<!doctype html>\n${doc.documentElement.outerHTML}`
-  const blob = new Blob([markup], { type: 'text/html' })
+  const blob = new Blob([`<!doctype html>\n${doc.documentElement.outerHTML}`], { type: 'text/html' })
   const url = objectUrl(blob)
   const fragment = (href: string) => decode(href.split('#')[1] ?? '')
 
@@ -85,7 +91,8 @@ export async function makeMarkdownBook(source: string, fileName: string, loadIma
       {
         id: 0,
         load: () => url,
-        createDocument: () => new DOMParser().parseFromString(markup, 'text/html'),
+        // Rarely needed (search, TOC lookups), so it re-reads the blob instead of keeping a copy.
+        createDocument: async () => new DOMParser().parseFromString(await blob.text(), 'text/html'),
         size: blob.size,
         linear: 'yes',
       },

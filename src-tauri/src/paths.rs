@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf};
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "ico"];
 
 /// Whether the file name ends in one of `extensions` (case-insensitive, without dots).
-pub fn has_extension(path: &Path, extensions: &[&str]) -> bool {
+fn has_extension(path: &Path, extensions: &[&str]) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| extensions.iter().any(|known| ext.eq_ignore_ascii_case(known)))

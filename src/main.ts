@@ -12,7 +12,6 @@ import {
   type ResolvedTheme,
 } from './appearance'
 import { commandFor, type Command } from './keys'
-import { isMarkdown } from './markdown'
 import { makeMarkdownBook } from './markdown-book'
 import { BookView, type BookSource, type BookStyle, type Flow, type Relocation } from './reader'
 import { createSettingsPanel, type PanelValues } from './settings-panel'
@@ -25,6 +24,8 @@ interface Position {
 
 interface BookInfo {
   fileName: string
+  /** Markdown is rendered by the app itself (the backend decides by extension). */
+  markdown: boolean
   fingerprint: string
   position: Position | null
 }
@@ -101,7 +102,7 @@ async function flushSave() {
 // ---- Opening books ----------------------------------------------------------
 
 /** Reads the window's book: a file for foliate-js, or a book built from Markdown. */
-async function loadBook(fileName: string, markdown: boolean): Promise<BookSource> {
+async function loadBook({ fileName, markdown }: BookInfo): Promise<BookSource> {
   const bytes = await invoke<ArrayBuffer>('read_book')
   if (markdown) {
     const loadImage = (path: string) => invoke<ArrayBuffer>('read_book_resource', { path })
@@ -123,8 +124,8 @@ async function openCurrentBook(lastLocation?: string) {
       return
     }
     fingerprint = info.fingerprint
-    markdownOpen = isMarkdown(info.fileName)
-    const source = await loadBook(info.fileName, markdownOpen)
+    markdownOpen = info.markdown
+    const source = await loadBook(info)
     await settingsReady
     book = await BookView.open($('stage'), $('footnote'), source, {
       flow: settings[flowKey()],
