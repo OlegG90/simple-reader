@@ -1,4 +1,5 @@
 import type { TocItem } from './markdown'
+import { pageLabels } from './pages'
 import './vendor/foliate-js/view.js'
 import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
 
@@ -29,6 +30,12 @@ interface Renderer extends HTMLElement {
   getContents(): { doc: Document }[]
   /** In scrolled flow: the laid-out content height, including the margins. */
   readonly viewSize: number
+  /** Paginated: the width of one screen, the current screen and the chapter's screens (each with a blank one either side). */
+  readonly size: number
+  readonly page: number
+  readonly pages: number
+  /** Paginated: the bottom margin's cell under each column; null when scrolled. */
+  readonly feet: HTMLElement[] | null
   goTo(target: { index: number; anchor: () => number }): Promise<void>
 }
 
@@ -213,7 +220,10 @@ export class BookView {
     this.#updateColumns()
     twoColumns.addEventListener('change', this.#updateColumns)
 
-    view.addEventListener('relocate', e => this.events.relocate((e as CustomEvent<Relocation>).detail))
+    view.addEventListener('relocate', e => {
+      this.#showPageNumbers()
+      this.events.relocate((e as CustomEvent<Relocation>).detail)
+    })
     view.addEventListener('load', e => this.#attachInput((e as CustomEvent<{ doc: Document }>).detail.doc))
     view.addEventListener('external-link', e => this.#onExternalLink(e as CustomEvent))
     view.addEventListener('link', e => {
@@ -232,6 +242,32 @@ export class BookView {
       if (!lastLocation) throw error
       return view.init({ showTextStart: true })
     })
+  }
+
+  /** Paginated: "5 / 18" under each column, counting pages within the chapter. */
+  #showPageNumbers() {
+    const { feet, page, pages } = this.view.renderer
+    if (!feet) return
+    const columns = feet.length
+    const labels = pageLabels({ screen: page, screens: pages - 2, columns, textColumns: this.#textColumns(columns) })
+    feet.forEach((foot, i) => (foot.textContent = labels[i]))
+  }
+
+  /**
+   * How many columns of the chapter hold text, so a half-empty last spread
+   * isn't counted as two pages. Undefined where it can't be measured simply
+   * (right-to-left or vertical text).
+   */
+  #textColumns(columns: number) {
+    const doc = this.view.renderer.getContents()[0]?.doc
+    if (!doc?.defaultView) return undefined
+    const style = doc.defaultView.getComputedStyle(doc.documentElement)
+    if (style.direction === 'rtl' || !style.writingMode.startsWith('horizontal')) return undefined
+    const text = doc.createRange()
+    text.selectNodeContents(doc.body)
+    const textRight = text.getBoundingClientRect().right - doc.documentElement.getBoundingClientRect().left
+    const columnPitch = this.view.renderer.size / columns
+    return textRight > 0 && columnPitch > 0 ? Math.ceil(textRight / columnPitch - 0.01) : undefined
   }
 
   #setUpFootnotes() {

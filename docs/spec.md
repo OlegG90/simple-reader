@@ -52,6 +52,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 
 - Table of contents (`T`), shown on demand.
 - A thin progress bar at the bottom; clicking it jumps to that position.
+- In paginated mode, the bottom margin shows the page within the current chapter under each column, e.g. `5 / 18` (small, muted, always visible). It is recounted when the layout changes; the book-wide position stays the progress bar's %.
 - Keyboard, mouse wheel, and clicking the left/right page edges.
 
 ### Footnotes and links

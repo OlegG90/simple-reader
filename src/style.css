@@ -68,6 +68,12 @@ body {
   inset: 0;
 }
 
+/* Page numbers in the bottom margin (paginated mode) */
+#stage foliate-view::part(foot) {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Start screen (also shows errors) */
 #start {
   position: absolute;
