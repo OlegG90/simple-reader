@@ -14,13 +14,11 @@ export interface RenderedMarkdown {
   title: string
 }
 
-const MARKDOWN_EXTENSIONS = ['.md', '.markdown']
-
-export const isMarkdown = (fileName: string) => MARKDOWN_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext))
+export const isMarkdown = (fileName: string) => fileName.toLowerCase().endsWith('.md')
 
 /** Removes a leading YAML front matter block (`---` … `---` or `...`). */
 export const stripFrontMatter = (source: string) =>
-  source.replace(/^﻿?---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/, '')
+  source.replace(/^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/, '')
 
 const ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" }
 const toPlainText = (html: string) => html.replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, e => ENTITIES[e])
@@ -35,12 +33,13 @@ const slugify = (text: string) =>
 /** Renders GitHub-flavored Markdown; every heading gets a unique id for links and the TOC. */
 export function renderMarkdown(source: string): RenderedMarkdown {
   const headings: Heading[] = []
-  const used = new Map<string, number>()
+  const taken = new Set<string>()
   const uniqueId = (text: string) => {
     const slug = slugify(text)
-    const count = used.get(slug) ?? 0
-    used.set(slug, count + 1)
-    return count ? `${slug}-${count}` : slug
+    let id = slug
+    for (let n = 1; taken.has(id); n++) id = `${slug}-${n}`
+    taken.add(id)
+    return id
   }
 
   const marked = new Marked({

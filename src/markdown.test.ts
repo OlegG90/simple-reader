@@ -41,6 +41,11 @@ describe('renderMarkdown', () => {
     expect(html).toContain('<h4 id="deep">Deep</h4>')
     expect(html).not.toContain('ignored')
   })
+
+  it('never repeats an id, even when a heading looks like a numbered duplicate', () => {
+    const { headings } = renderMarkdown('## Setup\n## Setup\n## Setup 1\n')
+    expect(headings.map(h => h.id)).toEqual(['setup', 'setup-1', 'setup-1-1'])
+  })
 })
 
 describe('headingsToToc', () => {
@@ -75,7 +80,6 @@ describe('headingsToToc', () => {
 describe('file and path checks', () => {
   it('recognises Markdown files', () => {
     expect(isMarkdown('Notes.MD')).toBe(true)
-    expect(isMarkdown('a.markdown')).toBe(true)
     expect(isMarkdown('book.epub')).toBe(false)
   })
 

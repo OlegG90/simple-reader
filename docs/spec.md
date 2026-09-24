@@ -67,6 +67,8 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - Code blocks in a monospace font, **no** syntax highlighting.
 - YAML front matter is hidden.
 - `F5` reloads the file manually; there is no automatic file watching.
+- Links to headings stay in the file; web links open in the browser; links to other files are ignored.
+- Raw HTML is allowed, but scripts, frames, embedded objects and event handlers are removed.
 
 ## Window
 

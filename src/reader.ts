@@ -152,6 +152,11 @@ export class BookView {
     return this.view.book.toc ?? []
   }
 
+  /** The current reading position (a CFI), if the book has been laid out. */
+  get location() {
+    return this.view.lastLocation?.cfi
+  }
+
   get flow(): Flow {
     return this.view.renderer.getAttribute('flow') === 'scrolled' ? 'scrolled' : 'paginated'
   }

@@ -75,8 +75,8 @@ let currentTocHref: string | undefined
 let book: BookView | null = null
 let fingerprint = ''
 /** Whether the open file is Markdown (which has its own mode and can be reloaded). */
-let markdown = false
-const flowKey = () => (markdown ? 'markdownFlow' : 'bookFlow')
+let markdownOpen = false
+const flowKey = () => (markdownOpen ? 'markdownFlow' : 'bookFlow')
 let tocView: { element: HTMLElement; setCurrentHref(href: string): void } | null = null
 
 // ---- Reading position -------------------------------------------------------
@@ -101,9 +101,9 @@ async function flushSave() {
 // ---- Opening books ----------------------------------------------------------
 
 /** Reads the window's book: a file for foliate-js, or a book built from Markdown. */
-async function loadBook(fileName: string): Promise<BookSource> {
+async function loadBook(fileName: string, markdown: boolean): Promise<BookSource> {
   const bytes = await invoke<ArrayBuffer>('read_book')
-  if (isMarkdown(fileName)) {
+  if (markdown) {
     const loadImage = (path: string) => invoke<ArrayBuffer>('read_book_resource', { path })
     return makeMarkdownBook(new TextDecoder().decode(bytes), fileName, loadImage)
   }
@@ -123,8 +123,8 @@ async function openCurrentBook(lastLocation?: string) {
       return
     }
     fingerprint = info.fingerprint
-    markdown = isMarkdown(info.fileName)
-    const source = await loadBook(info.fileName)
+    markdownOpen = isMarkdown(info.fileName)
+    const source = await loadBook(info.fileName, markdownOpen)
     await settingsReady
     book = await BookView.open($('stage'), $('footnote'), source, {
       flow: settings[flowKey()],
@@ -232,6 +232,9 @@ async function runCommand(command: Command) {
       return changeSettings({ fontSize: stepFontSize(settings.fontSize, 1) })
     case 'fontSmaller':
       return changeSettings({ fontSize: stepFontSize(settings.fontSize, -1) })
+    case 'reload':
+      // Works after a failed reload too (e.g. the editor was still saving).
+      return markdownOpen ? openCurrentBook(book?.location) : undefined
   }
   if (!book) return
   switch (command) {
@@ -255,8 +258,6 @@ async function runCommand(command: Command) {
       return tocOpen() ? closePanels() : openToc()
     case 'toggleFlow':
       return toggleFlow()
-    case 'reload':
-      return markdown ? openCurrentBook(book.view.lastLocation?.cfi) : undefined
   }
 }
 
@@ -266,11 +267,11 @@ async function handleEscape() {
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
 
-async function toggleFlow() {
+function toggleFlow() {
   if (!book) return
-  book.flow = book.flow === 'paginated' ? 'scrolled' : 'paginated'
+  const flow = (book.flow = book.flow === 'paginated' ? 'scrolled' : 'paginated')
   updateFlowButton()
-  changeSettings({ [flowKey()]: book.flow })
+  changeSettings(markdownOpen ? { markdownFlow: flow } : { bookFlow: flow })
 }
 
 function updateFlowButton() {

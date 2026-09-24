@@ -3,6 +3,8 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
+use crate::paths::is_markdown;
+
 /// How much of the file start is hashed; enough to tell books apart cheaply.
 const HEAD_LEN: u64 = 64 * 1024;
 
@@ -23,12 +25,6 @@ pub fn fingerprint(path: &Path) -> io::Result<String> {
     let hash = Sha256::digest(&head);
     let hex: String = hash[..12].iter().map(|b| format!("{b:02x}")).collect();
     Ok(format!("{size:x}-{hex}"))
-}
-
-fn is_markdown(path: &Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
 }
 
 #[cfg(test)]
