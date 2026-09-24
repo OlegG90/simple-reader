@@ -1,7 +1,11 @@
+/* Themes: main.ts sets data-theme to the resolved theme ("system" becomes light
+   or dark). The book is drawn with --fg and --link too (see appearance.ts), so
+   these variables are the one place a theme's colours are defined. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #fbfbf8;
   --fg: #1f1f1f;
+  --link: #1a5fb4;
   --muted: #777;
   --panel: #ffffff;
   --line: rgba(0, 0, 0, 0.12);
@@ -12,17 +16,29 @@
   font-size: 14px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1b1b1c;
-    --fg: #d8d8d6;
-    --muted: #8a8a8a;
-    --panel: #262628;
-    --line: rgba(255, 255, 255, 0.12);
-    --active: rgba(255, 255, 255, 0.08);
-    --accent: #9a9a9a;
-    --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
-  }
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1b1b1c;
+  --fg: #d8d8d6;
+  --link: #8ab4f8;
+  --muted: #8a8a8a;
+  --panel: #262628;
+  --line: rgba(255, 255, 255, 0.12);
+  --active: rgba(255, 255, 255, 0.08);
+  --accent: #9a9a9a;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme='sepia'] {
+  --bg: #f4ecd8;
+  --fg: #5b4636;
+  --link: #8a4b1f;
+  --muted: #8c7b66;
+  --panel: #faf4e6;
+  --line: rgba(91, 70, 54, 0.18);
+  --active: rgba(91, 70, 54, 0.08);
+  --accent: #9c8467;
+  --shadow: 0 8px 28px rgba(91, 70, 54, 0.2);
 }
 
 * {
@@ -191,6 +207,101 @@ button:hover {
 
 #toc-tree [aria-expanded='false'] + [role='group'] {
   display: none;
+}
+
+/* Settings panel */
+#settings {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 21;
+  width: min(320px, 85vw);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+#settings h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+#settings .field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+#settings .label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+#settings .field > :not(.label, output) {
+  grid-column: 1;
+}
+
+#settings .field:not(:has(output)) > :not(.label) {
+  grid-column: 1 / -1;
+}
+
+#settings select {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+#settings input[type='range'] {
+  accent-color: var(--accent);
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 5px 4px;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--active);
+  font-weight: 600;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper output {
+  min-width: 48px;
+  text-align: center;
+}
+
+.stepper button {
+  border: 1px solid var(--line);
+}
+
+#settings .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  accent-color: var(--accent);
 }
 
 /* Footnote pop-up */

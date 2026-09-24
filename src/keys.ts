@@ -9,6 +9,10 @@ export type Command =
   | 'chapterEnd'
   | 'toc'
   | 'toggleFlow'
+  | 'settings'
+  | 'cycleTheme'
+  | 'fontBigger'
+  | 'fontSmaller'
   | 'fullscreen'
   | 'escape'
 
@@ -16,7 +20,19 @@ type Key = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey' | 'altKey' | 'meta
 
 /** Maps a key press to a reader command; `null` leaves it to the browser. */
 export function commandFor(e: Key): Command | null {
-  if (e.ctrlKey || e.altKey || e.metaKey) return null
+  if (e.altKey || e.metaKey) return null
+  if (e.ctrlKey) {
+    switch (e.key) {
+      case '=':
+      case '+':
+        return 'fontBigger'
+      case '-':
+        return 'fontSmaller'
+      case ',':
+        return 'settings'
+    }
+    return null
+  }
   switch (e.key) {
     case 'ArrowLeft':
       return 'left'
@@ -42,6 +58,12 @@ export function commandFor(e: Key): Command | null {
     case 'm':
     case 'M':
       return 'toggleFlow'
+    case 's':
+    case 'S':
+      return 'settings'
+    case 'd':
+    case 'D':
+      return 'cycleTheme'
     case 'F11':
       return 'fullscreen'
     case 'Escape':

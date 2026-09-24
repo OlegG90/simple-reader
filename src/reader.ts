@@ -57,54 +57,8 @@ interface BookViewEvents {
   externalLink(href: string): void
 }
 
-const BOOK_CSS = `
-  @namespace epub "http://www.idpf.org/2007/ops";
-  html {
-    color-scheme: light dark;
-    font-size: 19px;
-  }
-  /* The app paints the page; many books hard-code a white page and black text. */
-  html, body {
-    background: none !important;
-  }
-  @media (prefers-color-scheme: dark) {
-    html, body, body * {
-      color: #d8d8d6 !important;
-      background-color: transparent !important;
-    }
-    a:any-link, a:any-link * {
-      color: #8ab4f8 !important;
-    }
-  }
-  body {
-    font-family: Georgia, serif;
-  }
-  p, li, blockquote, dd {
-    line-height: 1.5;
-    text-align: justify;
-    hyphens: auto;
-    -webkit-hyphenate-limit-before: 3;
-    -webkit-hyphenate-limit-after: 2;
-    -webkit-hyphenate-limit-lines: 2;
-    widows: 2;
-  }
-  [align="left"] { text-align: left; }
-  [align="right"] { text-align: right; }
-  [align="center"] { text-align: center; }
-  [align="justify"] { text-align: justify; }
-  pre {
-    white-space: pre-wrap !important;
-  }
-  aside[epub|type~="endnote"],
-  aside[epub|type~="footnote"],
-  aside[epub|type~="note"],
-  aside[epub|type~="rearnote"] {
-    display: none;
-  }
-`
-
 /** Footnote pop-ups: note headings (often just the note number) stay small. */
-const NOTE_CSS = `${BOOK_CSS}
+const NOTE_CSS = `
   h1, h2, h3, h4, h5, h6 {
     font-size: 1em !important;
     text-align: start !important;
@@ -138,12 +92,16 @@ const isWebLink = (href: string) => /^https?:/i.test(href)
 interface OpenOptions {
   flow: Flow
   lastLocation?: string
+  /** The app's stylesheet for the book (see appearance.ts). */
+  css: string
+  columnWidth: number
 }
 
 /** A book rendered by foliate-js, with the app's input handling attached. */
 export class BookView {
   readonly view = document.createElement('foliate-view') as FoliateView
   #footnotes = new FootnoteHandler()
+  #css = ''
   #lastWheel = 0
   #updateColumns = () =>
     this.view.renderer.setAttribute('max-column-count', twoColumns.matches ? '2' : '1')
@@ -206,6 +164,13 @@ export class BookView {
     return this.flow === 'scrolled' ? LINE_PX : undefined
   }
 
+  /** Restyles the book, keeping the reading position. */
+  setAppearance(css: string, columnWidth: number) {
+    this.#css = css
+    this.view.renderer.setStyles?.(css)
+    this.view.renderer.setAttribute('max-inline-size', `${columnWidth}px`)
+  }
+
   goToChapterEdge(edge: 'start' | 'end') {
     const index = this.view.lastLocation?.section?.current
     if (index == null) return
@@ -225,14 +190,13 @@ export class BookView {
     this.view.remove()
   }
 
-  async #open(file: File, { flow, lastLocation }: OpenOptions) {
+  async #open(file: File, { flow, lastLocation, css, columnWidth }: OpenOptions) {
     const { view } = this
     await view.open(file)
     this.flow = flow
-    view.renderer.setAttribute('max-inline-size', '700px')
+    this.setAppearance(css, columnWidth)
     this.#updateColumns()
     twoColumns.addEventListener('change', this.#updateColumns)
-    view.renderer.setStyles?.(BOOK_CSS)
 
     view.addEventListener('relocate', e => this.events.relocate((e as CustomEvent<Relocation>).detail))
     view.addEventListener('load', e => this.#attachInput((e as CustomEvent<{ doc: Document }>).detail.doc))
@@ -272,7 +236,7 @@ export class BookView {
       note.renderer.setAttribute('flow', 'scrolled')
       note.renderer.setAttribute('margin', `${NOTE_MARGIN_PX}px`)
       note.renderer.setAttribute('gap', '6%')
-      note.renderer.setStyles?.(NOTE_CSS)
+      note.renderer.setStyles?.(this.#css + NOTE_CSS)
       // Lay the note out off-screen so it has a size before it is shown.
       this.footnoteHost.style.visibility = 'hidden'
       this.footnoteHost.style.height = ''
