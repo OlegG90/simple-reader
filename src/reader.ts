@@ -83,6 +83,8 @@ const NOTE_BORDER_PX = 2
 const EDGE_CLICK = 0.2
 const WHEEL_PAUSE_MS = 250
 const LINE_PX = 60
+/** Share of a column treated as rounding noise when counting the columns text fills. */
+const COLUMN_EDGE_TOLERANCE = 0.01
 /** Paginated books show two columns in windows at least this wide. */
 const twoColumns = matchMedia('(min-width: 1400px)')
 
@@ -244,30 +246,39 @@ export class BookView {
     })
   }
 
-  /** Paginated: "5 / 18" under each column, counting pages within the chapter. */
+  /**
+   * Paginated: "5 / 18" under each column, counting pages within the chapter.
+   * Vertical text gets none: there the bottom cells don't match its columns.
+   */
   #showPageNumbers() {
     const { feet, page, pages } = this.view.renderer
     if (!feet) return
+    const style = this.#chapterStyle()
+    const vertical = !!style && !style.writingMode.startsWith('horizontal')
     const columns = feet.length
-    const labels = pageLabels({ screen: page, screens: pages - 2, columns, textColumns: this.#textColumns(columns) })
-    feet.forEach((foot, i) => (foot.textContent = labels[i]))
+    const textColumns = style && !vertical && style.direction !== 'rtl' ? this.#textColumns(columns) : undefined
+    const labels = vertical ? [] : pageLabels({ page, pages, columns, textColumns })
+    feet.forEach((foot, i) => (foot.textContent = labels[i] ?? ''))
+  }
+
+  #chapterStyle() {
+    const doc = this.view.renderer.getContents()[0]?.doc
+    return doc?.defaultView?.getComputedStyle(doc.documentElement)
   }
 
   /**
-   * How many columns of the chapter hold text, so a half-empty last spread
-   * isn't counted as two pages. Undefined where it can't be measured simply
-   * (right-to-left or vertical text).
+   * How many columns of the chapter hold text (left-to-right text only), so a
+   * half-empty last spread isn't counted as two pages.
    */
   #textColumns(columns: number) {
     const doc = this.view.renderer.getContents()[0]?.doc
-    if (!doc?.defaultView) return undefined
-    const style = doc.defaultView.getComputedStyle(doc.documentElement)
-    if (style.direction === 'rtl' || !style.writingMode.startsWith('horizontal')) return undefined
+    if (!doc) return undefined
     const text = doc.createRange()
     text.selectNodeContents(doc.body)
     const textRight = text.getBoundingClientRect().right - doc.documentElement.getBoundingClientRect().left
     const columnPitch = this.view.renderer.size / columns
-    return textRight > 0 && columnPitch > 0 ? Math.ceil(textRight / columnPitch - 0.01) : undefined
+    // Text ending exactly on a column edge must not count the next column.
+    return textRight > 0 && columnPitch > 0 ? Math.ceil(textRight / columnPitch - COLUMN_EDGE_TOLERANCE) : undefined
   }
 
   #setUpFootnotes() {
