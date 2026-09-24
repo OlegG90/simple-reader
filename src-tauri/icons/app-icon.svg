@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Simple Reader icon: an open book. Source for `npx tauri icon`; replace freely. -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#3d5a80"/>
+  <!-- pages -->
+  <path d="M512 330 C 430 262 300 246 196 262 L 196 744 C 300 728 430 744 512 812 Z" fill="#f4ecd8"/>
+  <path d="M512 330 C 594 262 724 246 828 262 L 828 744 C 724 728 594 744 512 812 Z" fill="#fbf7ee"/>
+  <!-- spine shadow -->
+  <path d="M512 330 L 512 812" stroke="#c9b99a" stroke-width="14" stroke-linecap="round"/>
+  <!-- lines of text -->
+  <g stroke="#b8a888" stroke-width="18" stroke-linecap="round">
+    <path d="M262 382 C 330 372 400 380 452 404"/>
+    <path d="M262 462 C 330 452 400 460 452 484"/>
+    <path d="M262 542 C 330 532 400 540 452 564"/>
+    <path d="M262 622 C 330 612 380 618 420 634"/>
+    <path d="M572 404 C 624 380 694 372 762 382"/>
+    <path d="M572 484 C 624 460 694 452 762 462"/>
+    <path d="M572 564 C 624 540 694 532 762 542"/>
+  </g>
+</svg>

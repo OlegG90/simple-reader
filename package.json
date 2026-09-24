@@ -8,6 +8,8 @@
     "build:web": "tsc --noEmit && vite build",
     "tauri": "tauri",
     "build": "tauri build --no-bundle",
+    "build:x64": "tauri build --no-bundle --target x86_64-pc-windows-msvc",
+    "build:arm64": "tauri build --no-bundle --target aarch64-pc-windows-msvc",
     "test": "vitest run && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
