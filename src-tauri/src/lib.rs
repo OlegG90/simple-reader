@@ -16,21 +16,19 @@ use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State, WebviewUrl, Webvi
 const DEFAULT_WIDTH: f64 = 1100.0;
 const DEFAULT_HEIGHT: f64 = 800.0;
 
-/// The book shown in a window. The frontend never passes file paths: it can
-/// only read the book the backend assigned to its window, so book content
-/// cannot make the app read arbitrary files.
-struct OpenBook {
-    path: PathBuf,
-    fingerprint: Option<String>,
-}
-
+/// The book file shown in each window, by window label. The frontend never
+/// passes file paths: it can only read the book the backend assigned to its
+/// window, so book content cannot make the app read arbitrary files.
 #[derive(Default)]
-struct Books(Mutex<HashMap<String, OpenBook>>);
+struct Books(Mutex<HashMap<String, PathBuf>>);
 
 impl Books {
-    fn set(&self, label: &str, path: PathBuf) {
-        let book = OpenBook { path, fingerprint: None };
-        self.0.lock().unwrap().insert(label.to_string(), book);
+    fn assign(&self, label: &str, path: PathBuf) {
+        self.0.lock().unwrap().insert(label.to_string(), path);
+    }
+
+    fn path_of(&self, label: &str) -> Result<PathBuf, String> {
+        self.0.lock().unwrap().get(label).cloned().ok_or_else(|| "No book is open".into())
     }
 }
 
@@ -38,33 +36,31 @@ impl Books {
 #[serde(rename_all = "camelCase")]
 struct BookInfo {
     file_name: String,
+    fingerprint: String,
     position: Option<Position>,
 }
 
 #[tauri::command]
 fn current_book(window: Window, books: State<Books>, store: State<Store>) -> Result<Option<BookInfo>, String> {
-    let mut books = books.0.lock().unwrap();
-    let Some(book) = books.get_mut(window.label()) else {
+    let Ok(path) = books.path_of(window.label()) else {
         return Ok(None);
     };
-    let file_name = book.path.file_name().unwrap_or_default().to_string_lossy().into_owned();
-    let fingerprint = fingerprint::fingerprint(&book.path).map_err(|e| format!("{file_name}: {e}"))?;
+    let file_name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let fingerprint = fingerprint::fingerprint(&path).map_err(|e| format!("{file_name}: {e}"))?;
     let position = store.read(|s| s.positions.get(&fingerprint).cloned());
-    book.fingerprint = Some(fingerprint);
-    Ok(Some(BookInfo { file_name, position }))
+    Ok(Some(BookInfo { file_name, fingerprint, position }))
 }
 
 #[tauri::command]
 fn read_book(window: Window, books: State<Books>) -> Result<Response, String> {
-    let path = books.0.lock().unwrap().get(window.label()).map(|b| b.path.clone());
-    let path = path.ok_or("No book is open")?;
+    let path = books.path_of(window.label())?;
     std::fs::read(path).map(Response::new).map_err(|e| e.to_string())
 }
 
+/// Takes the fingerprint from the frontend so a position that is still
+/// pending when another book replaces it is saved under the right book.
 #[tauri::command]
-fn save_position(window: Window, books: State<Books>, store: State<Store>, position: Position) -> Result<(), String> {
-    let fingerprint = books.0.lock().unwrap().get(window.label()).and_then(|b| b.fingerprint.clone());
-    let fingerprint = fingerprint.ok_or("No book is open")?;
+fn save_position(store: State<Store>, fingerprint: String, position: Position) -> Result<(), String> {
     store
         .update(|s| {
             s.positions.insert(fingerprint, position);
@@ -77,16 +73,17 @@ fn get_settings(store: State<Store>) -> Map<String, Value> {
     store.read(|s| s.settings.clone())
 }
 
+/// Merges changed settings, so windows never overwrite each other's changes.
 #[tauri::command]
-fn set_settings(store: State<Store>, settings: Map<String, Value>) -> Result<(), String> {
-    store.update(|s| s.settings = settings).map_err(|e| e.to_string())
+fn update_settings(store: State<Store>, changes: Map<String, Value>) -> Result<(), String> {
+    store.update(|s| s.settings.extend(changes)).map_err(|e| e.to_string())
 }
 
 fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
     static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
     let label = format!("reader-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed));
     if let Some(file) = file {
-        app.state::<Books>().set(&label, file);
+        app.state::<Books>().assign(&label, file);
     }
 
     let geometry = app.state::<Store>().read(|s| s.window.clone());
@@ -109,8 +106,11 @@ fn open_window(app: &AppHandle, file: Option<PathBuf>) -> tauri::Result<()> {
 fn is_on_screen(window: &tauri::WebviewWindow) -> tauri::Result<bool> {
     let pos = window.outer_position()?;
     Ok(window.available_monitors()?.iter().any(|m| {
-        let (mp, ms) = (m.position(), m.size());
-        pos.x >= mp.x && pos.y >= mp.y && pos.x < mp.x + ms.width as i32 && pos.y < mp.y + ms.height as i32
+        let (origin, size) = (m.position(), m.size());
+        pos.x >= origin.x
+            && pos.y >= origin.y
+            && pos.x < origin.x + size.width as i32
+            && pos.y < origin.y + size.height as i32
     }))
 }
 
@@ -140,14 +140,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Store::load(data_dir::default_state_file()))
         .manage(Books::default())
-        .invoke_handler(tauri::generate_handler![current_book, read_book, save_position, get_settings, set_settings])
+        .invoke_handler(tauri::generate_handler![current_book, read_book, save_position, get_settings, update_settings])
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { .. } => {
                 let _ = remember_geometry(window);
             }
             WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
                 if let Some(path) = paths.first() {
-                    window.state::<Books>().set(window.label(), path.clone());
+                    window.state::<Books>().assign(window.label(), path.clone());
                     let _ = window.app_handle().emit_to(window.label(), "book-changed", ());
                 }
             }

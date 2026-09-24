@@ -12,7 +12,13 @@ interface Position {
 
 interface BookInfo {
   fileName: string
+  fingerprint: string
   position: Position | null
+}
+
+interface PendingSave {
+  fingerprint: string
+  position: Position
 }
 
 type Settings = { bookFlow?: Flow } & Record<string, unknown>
@@ -25,24 +31,25 @@ const appWindow = getCurrentWindow()
 
 let settings: Settings = {}
 let book: BookView | null = null
+let fingerprint = ''
 let tocView: { element: HTMLElement; setCurrentHref(href: string): void } | null = null
 
 // ---- Reading position -------------------------------------------------------
 
-let pendingPosition: Position | null = null
+let pendingSave: PendingSave | null = null
 let saveTimer: number | undefined
 
-function scheduleSave(position: Position) {
-  pendingPosition = position
+function scheduleSave(save: PendingSave) {
+  pendingSave = save
   clearTimeout(saveTimer)
   saveTimer = window.setTimeout(flushSave, SAVE_DELAY_MS)
 }
 
 async function flushSave() {
   clearTimeout(saveTimer)
-  const position = pendingPosition
-  pendingPosition = null
-  if (position) await invoke('save_position', { position }).catch(console.error)
+  const save = pendingSave
+  pendingSave = null
+  if (save) await invoke('save_position', { ...save }).catch(console.error)
 }
 
 // ---- Opening books ----------------------------------------------------------
@@ -57,6 +64,7 @@ async function openCurrentBook() {
       $('hint').hidden = false
       return
     }
+    fingerprint = info.fingerprint
     const bytes = await invoke<ArrayBuffer>('read_book')
     // foliate-js detects some formats by extension, so normalise its case.
     const file = new File([bytes], info.fileName.toLowerCase())
@@ -66,7 +74,7 @@ async function openCurrentBook() {
     }, {
       relocate: onRelocate,
       key: onKey,
-      pointer: (_, y) => onPointer(y),
+      pointer: onPointer,
       externalLink: href => void openUrl(href).catch(console.error),
     })
   } catch (e) {
@@ -80,7 +88,9 @@ async function openCurrentBook() {
     book?.view.goTo(href).catch(console.error)
     closeToc()
   })
-  $('toc-tree').replaceChildren(tocView!.element)
+  $('toc-tree').replaceChildren(tocView.element)
+  const currentHref = book.view.lastLocation?.tocItem?.href
+  if (currentHref) tocView.setCurrentHref(currentHref)
   $('progress').hidden = false
   updateFlowButton()
 }
@@ -103,7 +113,8 @@ function showError(fileName: string | undefined, error: unknown) {
   title.textContent = fileName ? `Can't open “${fileName}”` : "Can't open the book"
   const detail = document.createElement('p')
   detail.className = 'muted'
-  detail.textContent = error instanceof Error ? error.message : String(error)
+  const message = error instanceof Error ? error.message : String(error)
+  detail.textContent = message || 'The file is damaged or in an unsupported format'
   box.replaceChildren(title, detail)
   box.hidden = false
 }
@@ -114,7 +125,7 @@ function onRelocate(location: Relocation) {
   $('progress-fill').style.width = `${fraction * 100}%`
   $('progress-label').textContent = tocItem?.label ? `${percent}% · ${tocItem.label}` : `${percent}%`
   if (tocItem?.href) tocView?.setCurrentHref(tocItem.href)
-  scheduleSave({ cfi, fraction })
+  scheduleSave({ fingerprint, position: { cfi, fraction } })
 }
 
 // ---- Commands ---------------------------------------------------------------
@@ -127,13 +138,13 @@ function onKey(e: KeyboardEvent) {
   // While the contents are open, arrows and Home/End move through the list.
   if (tocOpen() && !['toc', 'escape', 'fullscreen'].includes(command)) return
   e.preventDefault()
-  run(command).catch(console.error)
+  runCommand(command).catch(console.error)
 }
 
-async function run(command: Command) {
+async function runCommand(command: Command) {
   switch (command) {
     case 'escape':
-      return escape()
+      return handleEscape()
     case 'fullscreen':
       return appWindow.setFullscreen(!(await appWindow.isFullscreen()))
   }
@@ -152,9 +163,9 @@ async function run(command: Command) {
     case 'lineUp':
       return book.lineUp()
     case 'chapterStart':
-      return book.goToChapterEdge(0)
+      return book.goToChapterEdge('start')
     case 'chapterEnd':
-      return book.goToChapterEdge(1)
+      return book.goToChapterEdge('end')
     case 'toc':
       return tocOpen() ? closeToc() : openToc()
     case 'toggleFlow':
@@ -162,7 +173,7 @@ async function run(command: Command) {
   }
 }
 
-async function escape() {
+async function handleEscape() {
   if (!$('footnote').hidden) book?.hideFootnote()
   else if (tocOpen()) closeToc()
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
@@ -173,7 +184,7 @@ async function toggleFlow() {
   book.flow = book.flow === 'paginated' ? 'scrolled' : 'paginated'
   settings = { ...settings, bookFlow: book.flow }
   updateFlowButton()
-  await invoke('set_settings', { settings })
+  await invoke('update_settings', { changes: { bookFlow: book.flow } })
 }
 
 function updateFlowButton() {
@@ -213,9 +224,9 @@ function onPointer(y: number) {
 document.addEventListener('keydown', onKey)
 document.addEventListener('mousemove', e => onPointer(e.clientY))
 $('scrim').addEventListener('click', closeToc)
-$('toc-button').addEventListener('click', () => run('toc'))
-$('flow-button').addEventListener('click', () => run('toggleFlow'))
-$('fullscreen-button').addEventListener('click', () => run('fullscreen'))
+$('toc-button').addEventListener('click', () => runCommand('toc'))
+$('flow-button').addEventListener('click', () => runCommand('toggleFlow'))
+$('fullscreen-button').addEventListener('click', () => runCommand('fullscreen'))
 $('progress').addEventListener('click', e => {
   book?.view.goToFraction(e.clientX / innerWidth).catch(console.error)
 })

@@ -49,8 +49,8 @@ export interface BookViewEvents {
   relocate(location: Relocation): void
   /** Key presses inside the book, which lives in iframes. */
   key(event: KeyboardEvent): void
-  /** Mouse movement inside the book, in window coordinates. */
-  pointer(x: number, y: number): void
+  /** Mouse movement inside the book: the distance from the window top. */
+  pointer(y: number): void
   externalLink(href: string): void
 }
 
@@ -109,13 +109,18 @@ const TWO_COLUMNS_FROM_PX = 1400
 
 const formatLang = (x?: LangMap) => (!x ? '' : typeof x === 'string' ? x : (Object.values(x)[0] ?? ''))
 
-export const formatAuthor = (author?: Contributor | Contributor[]) =>
+const formatAuthor = (author?: Contributor | Contributor[]) =>
   (Array.isArray(author) ? author : author ? [author] : [])
     .map(c => (typeof c === 'string' ? c : formatLang(c.name)))
     .filter(Boolean)
     .join(', ')
 
-const isWebLink = (href: string) => /^(https?|mailto):/i.test(href)
+const isWebLink = (href: string) => /^https?:/i.test(href)
+
+interface OpenOptions {
+  flow: Flow
+  lastLocation?: string
+}
 
 /** A book rendered by foliate-js, with the app's input handling attached. */
 export class BookView {
@@ -136,7 +141,7 @@ export class BookView {
     host: HTMLElement,
     footnoteHost: HTMLElement,
     file: File,
-    options: { flow: Flow; lastLocation?: string },
+    options: OpenOptions,
     events: BookViewEvents,
   ): Promise<BookView> {
     const book = new BookView(host, footnoteHost, events)
@@ -177,11 +182,11 @@ export class BookView {
     return this.flow === 'scrolled' ? this.view.prev(LINE_PX) : this.view.prev()
   }
 
-  /** Goes to the start (0) or end (1) of the current chapter. */
-  goToChapterEdge(edge: 0 | 1) {
+  goToChapterEdge(edge: 'start' | 'end') {
     const index = this.view.lastLocation?.section?.current
     if (index == null) return
-    return this.view.renderer.goTo({ index, anchor: () => edge })
+    const anchor = edge === 'start' ? 0 : 1
+    return this.view.renderer.goTo({ index, anchor: () => anchor })
   }
 
   hideFootnote() {
@@ -196,7 +201,7 @@ export class BookView {
     this.view.remove()
   }
 
-  async #open(file: File, { flow, lastLocation }: { flow: Flow; lastLocation?: string }) {
+  async #open(file: File, { flow, lastLocation }: OpenOptions) {
     const { view } = this
     await view.open(file)
     view.renderer.setAttribute('flow', flow)
@@ -209,9 +214,14 @@ export class BookView {
     view.addEventListener('load', e => this.#attachInput((e as CustomEvent<{ doc: Document }>).detail.doc))
     view.addEventListener('external-link', e => this.#onExternalLink(e as CustomEvent))
     view.addEventListener('link', e => {
-      this.#footnotes.handle(view.book, e)?.catch((err: unknown) => console.error(err))
+      this.#footnotes.handle(view.book, e)?.catch((err: unknown) => {
+        console.error(err)
+        this.hideFootnote()
+      })
     })
+    // The page margins lie outside the book's iframes.
     view.addEventListener('wheel', e => this.#onWheel(e), { passive: true })
+    view.addEventListener('click', e => this.#onEdgeClick(e.clientX))
     this.#setUpFootnotes()
 
     await view.init({ lastLocation, showTextStart: true })
@@ -232,6 +242,10 @@ export class BookView {
         this.view.goTo((ev as CustomEvent<{ href: string }>).detail.href)
       })
       note.addEventListener('external-link', ev => this.#onExternalLink(ev as CustomEvent))
+      note.addEventListener('load', ev => {
+        const { doc } = (ev as CustomEvent<{ doc: Document }>).detail
+        doc.addEventListener('keydown', k => this.events.key(k))
+      })
       note.renderer.setAttribute('flow', 'scrolled')
       note.renderer.setAttribute('margin', '16px')
       note.renderer.setAttribute('gap', '6%')
@@ -258,10 +272,7 @@ export class BookView {
     }
     doc.addEventListener('keydown', ev => this.events.key(ev))
     doc.addEventListener('wheel', ev => this.#onWheel(ev), { passive: true })
-    doc.addEventListener('mousemove', ev => {
-      const { x, y } = toWindow(ev)
-      this.events.pointer(x, y)
-    })
+    doc.addEventListener('mousemove', ev => this.events.pointer(toWindow(ev).y))
     doc.addEventListener('click', ev => {
       if (ev.defaultPrevented || (ev.target as Element).closest?.('a[href]')) return
       if (doc.getSelection()?.toString()) return
