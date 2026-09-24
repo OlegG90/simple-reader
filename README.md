@@ -28,8 +28,9 @@ npm test                                          # frontend (vitest) and backen
 npm run build                                     # src-tauri/target/release/sreader.exe
 ```
 
-Sample books are in [samples/](samples/): public-domain EPUBs from Project Gutenberg, and FB2 files
-(windows-1251 and a UTF-8 `.fb2.zip`) generated from original text by `python scripts/make-fb2-samples.py`.
+Sample books are in [samples/](samples/): public-domain EPUBs from Project Gutenberg, FB2 files
+(windows-1251 and a UTF-8 `.fb2.zip`) generated from original text by `python scripts/make-fb2-samples.py`,
+and `sample.md` with a local image.
 
 ## License
 

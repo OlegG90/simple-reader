@@ -14,6 +14,7 @@ export type Command =
   | 'fontBigger'
   | 'fontSmaller'
   | 'fullscreen'
+  | 'reload'
   | 'escape'
 
 type Key = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey'>
@@ -63,6 +64,8 @@ export function commandFor(e: Key): Command | null {
       return 'cycleTheme'
     case 'F11':
       return 'fullscreen'
+    case 'F5':
+      return 'reload'
     case 'Escape':
       return 'escape'
   }

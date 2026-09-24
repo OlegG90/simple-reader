@@ -57,6 +57,28 @@ fn read_book(window: Window, books: State<Books>) -> Result<Response, String> {
     std::fs::read(path).map(Response::new).map_err(|e| e.to_string())
 }
 
+/// Image types a Markdown file may show from next to it.
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "ico"];
+
+/// Reads an image referenced by the open book (a Markdown file), relative to
+/// the book's folder. Only image files are served, so a document cannot use
+/// this to read anything else.
+#[tauri::command(async)]
+fn read_book_resource(window: Window, books: State<Books>, path: String) -> Result<Response, String> {
+    let book = books.path_of(window.label())?;
+    let target = resource_path(&book, &path).ok_or("Not an image next to the book")?;
+    std::fs::read(target).map(Response::new).map_err(|e| e.to_string())
+}
+
+fn resource_path(book: &std::path::Path, relative: &str) -> Option<PathBuf> {
+    let relative = std::path::Path::new(relative);
+    let is_image = relative
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| IMAGE_EXTENSIONS.iter().any(|known| ext.eq_ignore_ascii_case(known)));
+    (is_image && relative.is_relative()).then(|| book.parent().unwrap_or(book).join(relative))
+}
+
 /// Takes the fingerprint from the frontend so a position that is still
 /// pending when another book replaces it is saved under the right book.
 #[tauri::command(async)]
@@ -150,7 +172,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Store::load(data_dir::default_state_file()))
         .manage(Books::default())
-        .invoke_handler(tauri::generate_handler![current_book, read_book, save_position, get_settings, update_settings])
+        .invoke_handler(tauri::generate_handler![current_book, read_book, read_book_resource, save_position, get_settings, update_settings])
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { .. } => {
                 let _ = remember_geometry(window);
@@ -173,7 +195,19 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::theme_script;
+    use super::{resource_path, theme_script};
+    use std::path::Path;
+
+    #[test]
+    fn resources_are_images_relative_to_the_book() {
+        let book = Path::new(r"C:\Notes\guide.md");
+        let notes = Path::new(r"C:\Notes");
+        assert_eq!(resource_path(book, "img/a.PNG"), Some(notes.join("img/a.PNG")));
+        assert_eq!(resource_path(book, "../shared/b.svg"), Some(notes.join("../shared/b.svg")));
+        assert_eq!(resource_path(book, "secrets.txt"), None);
+        assert_eq!(resource_path(book, "noextension"), None);
+        assert_eq!(resource_path(book, r"C:\Windows\a.png"), None);
+    }
 
     #[test]
     fn theme_script_uses_known_themes() {

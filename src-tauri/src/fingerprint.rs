@@ -6,9 +6,16 @@ use std::path::Path;
 /// How much of the file start is hashed; enough to tell books apart cheaply.
 const HEAD_LEN: u64 = 64 * 1024;
 
-/// Identifies a book by its content (size + hash of its start), so the
-/// reading position survives moving or renaming the file.
+/// Identifies a book for its saved reading position.
+///
+/// Books are identified by content (size + hash of their start), so the
+/// position survives moving or renaming the file. Markdown files are edited,
+/// which changes their content, so they are identified by their full path.
 pub fn fingerprint(path: &Path) -> io::Result<String> {
+    if is_markdown(path) {
+        let full = std::path::absolute(path)?;
+        return Ok(format!("md:{}", full.to_string_lossy().to_lowercase()));
+    }
     let file = File::open(path)?;
     let size = file.metadata()?.len();
     let mut head = Vec::new();
@@ -16,6 +23,12 @@ pub fn fingerprint(path: &Path) -> io::Result<String> {
     let hash = Sha256::digest(&head);
     let hex: String = hash[..12].iter().map(|b| format!("{b:02x}")).collect();
     Ok(format!("{size:x}-{hex}"))
+}
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"))
 }
 
 #[cfg(test)]
@@ -52,6 +65,17 @@ mod tests {
         fs::write(&a, [head.as_slice(), b"x"].concat()).unwrap();
         fs::write(&b, [head.as_slice(), b"xy"].concat()).unwrap();
         assert_ne!(fingerprint(&a).unwrap(), fingerprint(&b).unwrap());
+    }
+
+    #[test]
+    fn markdown_is_identified_by_path_and_survives_edits() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("Notes.MD");
+        fs::write(&notes, b"# Draft").unwrap();
+        let before = fingerprint(&notes).unwrap();
+        fs::write(&notes, b"# Draft, edited").unwrap();
+        assert_eq!(fingerprint(&notes).unwrap(), before);
+        assert!(before.starts_with("md:"));
     }
 
     #[test]

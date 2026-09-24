@@ -22,7 +22,11 @@ type Contributor = string | { name?: LangMap }
 interface Book {
   metadata?: { title?: LangMap; author?: Contributor | Contributor[] }
   toc?: TocItem[]
+  destroy?(): void
 }
+
+/** A book file for foliate-js to parse, or a book object the app built itself (Markdown). */
+export type BookSource = File | object
 
 interface Renderer extends HTMLElement {
   setStyles?(css: string): void
@@ -37,7 +41,7 @@ interface FoliateView extends HTMLElement {
   book: Book
   renderer: Renderer
   lastLocation: Relocation | null
-  open(book: File | Book): Promise<void>
+  open(book: BookSource): Promise<void>
   init(options: { lastLocation?: string; showTextStart?: boolean }): Promise<void>
   close(): void
   goTo(target: string | number): Promise<unknown>
@@ -122,13 +126,13 @@ export class BookView {
   static async open(
     host: HTMLElement,
     footnoteHost: HTMLElement,
-    file: File,
+    source: BookSource,
     options: OpenOptions,
     events: BookViewEvents,
   ): Promise<BookView> {
     const book = new BookView(host, footnoteHost, events)
     try {
-      await book.#open(file, options)
+      await book.#open(source, options)
     } catch (e) {
       book.destroy()
       throw e
@@ -196,12 +200,13 @@ export class BookView {
     twoColumns.removeEventListener('change', this.#updateColumns)
     this.hideFootnote()
     this.view.close()
+    this.view.book?.destroy?.()
     this.view.remove()
   }
 
-  async #open(file: File, { flow, lastLocation, style }: OpenOptions) {
+  async #open(source: BookSource, { flow, lastLocation, style }: OpenOptions) {
     const { view } = this
-    await view.open(file)
+    await view.open(source)
     this.flow = flow
     this.setStyle(style)
     this.#updateColumns()
@@ -221,7 +226,8 @@ export class BookView {
     view.addEventListener('click', e => this.#onEdgeClick(e.clientX))
     this.#setUpFootnotes()
 
-    await view.init({ lastLocation, showTextStart: true })
+    // A saved location can stop resolving (e.g. after a Markdown edit); start over then.
+    await view.init({ lastLocation, showTextStart: true }).catch(() => view.init({ showTextStart: true }))
   }
 
   #setUpFootnotes() {
