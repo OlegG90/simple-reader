@@ -3,7 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   bookCss,
-  columnWidthPx,
+  lineWidthPx,
   isAppearanceKey,
   nextTheme,
   oneOf,
@@ -13,8 +13,9 @@ import {
 } from './appearance'
 import { el } from './dom'
 import { commandFor, type Command } from './keys'
+import type { Flow } from './layout'
 import { makeMarkdownBook } from './markdown-book'
-import { BookView, type BookSource, type BookStyle, type Flow, type Relocation } from './reader'
+import { BookView, type BookSource, type BookStyle, type Relocation } from './reader'
 import { createSettingsPanel, type PanelValues } from './settings-panel'
 import { createTOCView } from './vendor/foliate-js/ui/tree.js'
 
@@ -367,7 +368,7 @@ function currentBookStyle(): BookStyle {
     text: root.getPropertyValue('--fg').trim(),
     link: root.getPropertyValue('--link').trim(),
   }
-  return { css: bookCss(settings, colors), columnWidth: columnWidthPx(settings) }
+  return { css: bookCss(settings, colors), lineWidth: lineWidthPx(settings) }
 }
 
 function restyle() {

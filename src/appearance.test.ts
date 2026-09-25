@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_APPEARANCE, bookCss, columnWidthPx, nextTheme, readAppearance, stepFontSize } from './appearance'
+import { DEFAULT_APPEARANCE, bookCss, lineWidthPx, nextTheme, readAppearance, stepFontSize } from './appearance'
 
 const dark = { theme: 'dark', text: '#ddd', link: '#8ab4f8' } as const
 const light = { theme: 'light', text: '#111', link: '#15b' } as const
@@ -28,10 +28,10 @@ describe('theme and font size steps', () => {
   })
 })
 
-describe('columnWidthPx', () => {
+describe('lineWidthPx', () => {
   it('fits the line length at the current font size', () => {
-    expect(columnWidthPx({ ...DEFAULT_APPEARANCE, lineLength: 70, fontSize: 20 })).toBe(700)
-    expect(columnWidthPx({ ...DEFAULT_APPEARANCE, lineLength: 70, fontSize: 30 })).toBe(1050)
+    expect(lineWidthPx({ ...DEFAULT_APPEARANCE, lineLength: 70, fontSize: 20 })).toBe(700)
+    expect(lineWidthPx({ ...DEFAULT_APPEARANCE, lineLength: 70, fontSize: 30 })).toBe(1050)
   })
 })
 

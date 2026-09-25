@@ -1,10 +1,8 @@
+import { PAGE_GAP, columnLayout, type Flow } from './layout'
 import type { TocItem } from './markdown'
 import { pageLabels } from './pages'
 import './vendor/foliate-js/view.js'
 import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
-
-export type Flow = 'paginated' | 'scrolled'
-
 
 export interface Relocation {
   fraction: number
@@ -87,8 +85,6 @@ const WHEEL_PAUSE_MS = 250
 const LINE_PX = 60
 /** Share of a column treated as rounding noise when counting the columns text fills. */
 const COLUMN_EDGE_TOLERANCE = 0.01
-/** Paginated books show two columns in windows at least this wide. */
-const twoColumns = matchMedia('(min-width: 1400px)')
 
 const formatLang = (x?: LangMap) => (!x ? '' : typeof x === 'string' ? x : (Object.values(x)[0] ?? ''))
 
@@ -103,8 +99,8 @@ const isWebLink = (href: string) => /^https?:/i.test(href)
 /** How the app draws the book (see appearance.ts). */
 export interface BookStyle {
   css: string
-  /** Maximum width of a text column, in px. */
-  columnWidth: number
+  /** The reader's line length in px: a paginated column longer than this splits into two. */
+  lineWidth: number
 }
 
 interface OpenOptions {
@@ -119,8 +115,8 @@ export class BookView {
   #footnotes = new FootnoteHandler()
   #css = ''
   #lastWheel = 0
-  #updateColumns = () =>
-    this.view.renderer.setAttribute('max-column-count', twoColumns.matches ? '2' : '1')
+  #lineWidth = 0
+  #onResize = () => this.#fillWindow()
 
   private constructor(
     host: HTMLElement,
@@ -170,6 +166,20 @@ export class BookView {
 
   set flow(flow: Flow) {
     this.view.renderer.setAttribute('flow', flow)
+    this.#fillWindow()
+  }
+
+  /** Lays the text across the window: see columnLayout(). */
+  #fillWindow() {
+    const renderer = this.view.renderer
+    // The reader fills the window (#stage), so the window is the paginator's box.
+    const viewport = { width: innerWidth, height: innerHeight }
+    const current = parseFloat(renderer.getAttribute('max-inline-size') ?? '') || undefined
+    const { columns, maxInlineSize } = columnLayout(viewport, this.#lineWidth, this.flow, current)
+    // Every change to these attributes re-lays the whole book out.
+    const set = (name: string, value: string) => renderer.getAttribute(name) !== value && renderer.setAttribute(name, value)
+    set('max-column-count', String(columns))
+    set('max-inline-size', `${maxInlineSize}px`)
   }
 
   /** Scrolls a line in scrolled mode, turns a page in paginated mode. */
@@ -186,14 +196,12 @@ export class BookView {
   }
 
   /** Restyles the book, keeping the reading position. An open note would keep the old style, so it closes. */
-  setStyle({ css, columnWidth }: BookStyle) {
+  setStyle({ css, lineWidth }: BookStyle) {
     this.hideFootnote()
     this.#css = css
     this.view.renderer.setStyles?.(css)
-    // Every change to this attribute re-lays the whole book out.
-    const width = `${columnWidth}px`
-    if (this.view.renderer.getAttribute('max-inline-size') !== width)
-      this.view.renderer.setAttribute('max-inline-size', width)
+    this.#lineWidth = lineWidth
+    this.#fillWindow()
   }
 
   goToChapterEdge(edge: 'start' | 'end') {
@@ -209,7 +217,7 @@ export class BookView {
   }
 
   destroy() {
-    twoColumns.removeEventListener('change', this.#updateColumns)
+    removeEventListener('resize', this.#onResize)
     this.hideFootnote()
     this.view.close()
     this.view.book?.destroy?.()
@@ -219,10 +227,10 @@ export class BookView {
   async #open(source: BookSource, { flow, lastLocation, style }: OpenOptions) {
     const { view } = this
     await view.open(source)
-    this.flow = flow
+    view.renderer.setAttribute('gap', PAGE_GAP)
     this.setStyle(style)
-    this.#updateColumns()
-    twoColumns.addEventListener('change', this.#updateColumns)
+    this.flow = flow
+    addEventListener('resize', this.#onResize)
 
     view.addEventListener('relocate', e => {
       this.#showPageNumbers()

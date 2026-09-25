@@ -70,8 +70,8 @@ export const stepFontSize = (size: number, direction: 1 | -1) =>
 /** An average character of body text is about half an em wide. */
 const CHAR_WIDTH_EM = 0.5
 
-/** The column width that fits `lineLength` characters at the current font size. */
-export const columnWidthPx = ({ lineLength, fontSize }: Appearance) => Math.round(lineLength * fontSize * CHAR_WIDTH_EM)
+/** The width of `lineLength` characters at the current font size, in px. */
+export const lineWidthPx = ({ lineLength, fontSize }: Appearance) => Math.round(lineLength * fontSize * CHAR_WIDTH_EM)
 
 const FONT_STACKS: Record<Exclude<Font, 'publisher'>, string> = {
   Georgia: 'Georgia, serif',

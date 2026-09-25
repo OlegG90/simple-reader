@@ -30,7 +30,9 @@ Bookmarks, highlights and notes, full-text search, dictionary / translation, tex
 
 - **Paginated** and **scrolled**, toggled with `M`.
 - The mode is remembered separately per content type: books default to paginated, Markdown defaults to scrolled. `M` toggles the mode for the current type.
-- In paginated mode, windows wider than ~1400 px show two columns.
+- The text fills the window with small side margins (about 3% of the width on each side).
+- Paginated: one column across the window; when that column would be longer than the line length, the window splits into two equal columns (never more than two, and never in a window taller than wide). Columns follow window resizes and font / line-length changes.
+- Scrolled: the text spans the window width.
 
 ### Appearance (global settings, not per book)
 
@@ -40,7 +42,7 @@ Bookmarks, highlights and notes, full-text search, dictionary / translation, tex
 | Font | Georgia (choices: Georgia, Cambria, Segoe UI, Calibri, Publisher default) |
 | Font size | 19 px (12–36) |
 | Line height | 1.5 (1.2–2.2) |
-| Line length | ~70 characters (45–100); the column width follows the font size |
+| Line length | ~70 characters (45–100): the longest paginated line before the page splits into two columns; follows the font size |
 
 Justified text with hyphenation is always on (hyphenation works for the languages WebView2 supports).
 
