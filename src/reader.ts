@@ -4,9 +4,6 @@ import { pageLabels } from './pages'
 import './vendor/foliate-js/view.js'
 import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
 
-export type { Flow } from './layout'
-
-
 export interface Relocation {
   fraction: number
   cfi: string
@@ -119,11 +116,7 @@ export class BookView {
   #css = ''
   #lastWheel = 0
   #lineWidth = 0
-  #resizeFrame = 0
-  #onResize = () => {
-    cancelAnimationFrame(this.#resizeFrame)
-    this.#resizeFrame = requestAnimationFrame(() => this.#fillWindow())
-  }
+  #onResize = () => this.#fillWindow()
 
   private constructor(
     host: HTMLElement,
@@ -179,8 +172,10 @@ export class BookView {
   /** Lays the text across the window: see columnLayout(). */
   #fillWindow() {
     const renderer = this.view.renderer
+    // The reader fills the window (#stage), so the window is the paginator's box.
     const viewport = { width: innerWidth, height: innerHeight }
-    const { columns, maxInlineSize } = columnLayout(viewport, this.#lineWidth, this.flow)
+    const current = parseFloat(renderer.getAttribute('max-inline-size') ?? '') || undefined
+    const { columns, maxInlineSize } = columnLayout(viewport, this.#lineWidth, this.flow, current)
     // Every change to these attributes re-lays the whole book out.
     const set = (name: string, value: string) => renderer.getAttribute(name) !== value && renderer.setAttribute(name, value)
     set('max-column-count', String(columns))
@@ -223,7 +218,6 @@ export class BookView {
 
   destroy() {
     removeEventListener('resize', this.#onResize)
-    cancelAnimationFrame(this.#resizeFrame)
     this.hideFootnote()
     this.view.close()
     this.view.book?.destroy?.()

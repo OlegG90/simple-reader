@@ -13,8 +13,9 @@ import {
 } from './appearance'
 import { el } from './dom'
 import { commandFor, type Command } from './keys'
+import type { Flow } from './layout'
 import { makeMarkdownBook } from './markdown-book'
-import { BookView, type BookSource, type BookStyle, type Flow, type Relocation } from './reader'
+import { BookView, type BookSource, type BookStyle, type Relocation } from './reader'
 import { createSettingsPanel, type PanelValues } from './settings-panel'
 import { createTOCView } from './vendor/foliate-js/ui/tree.js'
 
