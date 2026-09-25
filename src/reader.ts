@@ -1,10 +1,10 @@
-import { PAGE_GAP, columnLayout } from './layout'
+import { PAGE_GAP, columnLayout, type Flow } from './layout'
 import type { TocItem } from './markdown'
 import { pageLabels } from './pages'
 import './vendor/foliate-js/view.js'
 import { FootnoteHandler } from './vendor/foliate-js/footnotes.js'
 
-export type Flow = 'paginated' | 'scrolled'
+export type { Flow } from './layout'
 
 
 export interface Relocation {
@@ -103,7 +103,7 @@ const isWebLink = (href: string) => /^https?:/i.test(href)
 export interface BookStyle {
   css: string
   /** The reader's line length in px: a paginated column longer than this splits into two. */
-  columnWidth: number
+  lineWidth: number
 }
 
 interface OpenOptions {
@@ -179,8 +179,8 @@ export class BookView {
   /** Lays the text across the window: see columnLayout(). */
   #fillWindow() {
     const renderer = this.view.renderer
-    const window = { width: innerWidth, height: innerHeight }
-    const { columns, maxInlineSize } = columnLayout(window, this.#lineWidth, this.flow)
+    const viewport = { width: innerWidth, height: innerHeight }
+    const { columns, maxInlineSize } = columnLayout(viewport, this.#lineWidth, this.flow)
     // Every change to these attributes re-lays the whole book out.
     const set = (name: string, value: string) => renderer.getAttribute(name) !== value && renderer.setAttribute(name, value)
     set('max-column-count', String(columns))
@@ -201,11 +201,11 @@ export class BookView {
   }
 
   /** Restyles the book, keeping the reading position. An open note would keep the old style, so it closes. */
-  setStyle({ css, columnWidth }: BookStyle) {
+  setStyle({ css, lineWidth }: BookStyle) {
     this.hideFootnote()
     this.#css = css
     this.view.renderer.setStyles?.(css)
-    this.#lineWidth = columnWidth
+    this.#lineWidth = lineWidth
     this.#fillWindow()
   }
 

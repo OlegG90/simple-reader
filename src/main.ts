@@ -3,7 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   bookCss,
-  columnWidthPx,
+  lineWidthPx,
   isAppearanceKey,
   nextTheme,
   oneOf,
@@ -367,7 +367,7 @@ function currentBookStyle(): BookStyle {
     text: root.getPropertyValue('--fg').trim(),
     link: root.getPropertyValue('--link').trim(),
   }
-  return { css: bookCss(settings, colors), columnWidth: columnWidthPx(settings) }
+  return { css: bookCss(settings, colors), lineWidth: lineWidthPx(settings) }
 }
 
 function restyle() {
