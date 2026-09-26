@@ -67,7 +67,9 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - GFM: tables, task lists, strikethrough.
 - Images resolved relative to the `.md` file.
 - Table of contents built from H1–H3.
-- Code blocks in a monospace font, **no** syntax highlighting.
+- Code blocks in a monospace font. A block in a named language is syntax-highlighted in the theme's colours (the common languages plus PowerShell); a block without a language, or in an unknown one, stays plain.
+- Code blocks, inline code and quotations sit on a background tinted from the text colour, so they stand out in every theme.
+- ` ```mermaid ` blocks are drawn as diagrams: an image that fits the page like any other. Diagrams are drawn in greys; the dark theme inverts them and sepia warms them. A block that is not valid Mermaid stays as code.
 - YAML front matter is hidden.
 - `F5` reloads the file manually; there is no automatic file watching.
 - Links to headings stay in the file; web links open in the browser; links to other files are ignored.
@@ -142,7 +144,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 
 - **Shell:** Tauri 2 (Rust) + WebView2.
 - **Frontend:** plain TypeScript, no framework.
-- **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`.
+- **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`, with [Mermaid](https://mermaid.js.org) (MIT) for diagrams and [highlight.js](https://highlightjs.org) (BSD-3-Clause) for code. Both load only when a file has a diagram or code in a named language.
 - **Plugins:** single-instance, dialog, opener. Command-line arguments are parsed by the app itself.
 - **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it for the local architecture into `src-tauri/target/release/`; `npm run build:x64` / `build:arm64` build for a given architecture into `src-tauri/target/<target>/release/`.
 - **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags (the tag must match the version in `src-tauri/Cargo.toml`) and attaches both, as `sreader-x64.exe` and `sreader-arm64.exe`, to the GitHub Release. A manual run builds both as an artifact without publishing.
@@ -151,7 +153,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 
 ## Testing
 
-- Automated tests cover the app's own logic: data-location selection, FB2 encoding detection, Markdown → HTML, CLI argument parsing, book fingerprinting.
+- Automated tests cover the app's own logic: data-location selection, FB2 encoding detection, Markdown → HTML, diagrams and code highlighting, CLI argument parsing, book fingerprinting.
 - Rendering is checked by hand against sample files kept in the repo: public-domain EPUBs (Project Gutenberg), an FB2 in windows-1251, a `.fb2.zip`, and a `.md` file.
 
 ## Milestones

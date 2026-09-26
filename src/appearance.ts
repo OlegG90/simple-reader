@@ -1,3 +1,5 @@
+import { CODE_ATTR, DIAGRAM_ATTR } from './code-blocks'
+
 export const THEMES = ['system', 'light', 'dark', 'sepia'] as const
 export type Theme = (typeof THEMES)[number]
 /** What "system" resolves to, and what the app's CSS knows how to draw. */
@@ -102,6 +104,55 @@ const repaint = ({ theme, text, link }: BookColors) =>
     color: ${link} !important;
   }`
 
+/** highlight.js token classes, grouped by the colour they get (after GitHub's themes). */
+const TOKEN_ROLES = {
+  keyword: 'keyword, doctag, template-tag, template-variable, type, variable.language_, meta .hljs-keyword, deletion',
+  title: 'title, title.class_, title.function_',
+  constant: 'attr, attribute, literal, meta, number, operator, variable, selector-attr, selector-class, selector-id, section',
+  string: 'string, regexp, meta .hljs-string',
+  builtin: 'built_in, symbol, bullet',
+  comment: 'comment, code, formula',
+  tag: 'name, quote, selector-tag, selector-pseudo, addition',
+}
+type TokenRole = keyof typeof TOKEN_ROLES
+
+const TOKEN_COLORS: Record<ResolvedTheme, Record<TokenRole, string>> = {
+  light: {
+    keyword: '#cf222e', title: '#8250df', constant: '#0550ae', string: '#0a3069',
+    builtin: '#953800', comment: '#6e7781', tag: '#116329',
+  },
+  dark: {
+    keyword: '#ff7b72', title: '#d2a8ff', constant: '#79c0ff', string: '#a5d6ff',
+    builtin: '#ffa657', comment: '#8b949e', tag: '#7ee787',
+  },
+  sepia: {
+    keyword: '#a32d2d', title: '#6c3d99', constant: '#1d5c8c', string: '#3e6b1f',
+    builtin: '#9a4f0b', comment: '#8c7b66', tag: '#2f6b43',
+  },
+}
+
+/** Colours highlighted code for the theme; they win over the dark / sepia repaint. */
+const codeCss = (theme: ResolvedTheme) =>
+  Object.entries(TOKEN_ROLES)
+    .map(([role, tokens]) => {
+      const selectors = tokens.split(', ').map(token => `[${CODE_ATTR}] .hljs-${token}`)
+      return `${selectors.join(', ')} { color: ${TOKEN_COLORS[theme][role as TokenRole]} !important; }`
+    })
+    .join('\n  ')
+
+/**
+ * Diagrams are drawn in light greys on a transparent background. Dark turns
+ * them into dark greys a shade lighter than the page; sepia warms them.
+ */
+const DIAGRAM_FILTERS: Record<ResolvedTheme, string> = {
+  light: '',
+  dark: 'invert(0.88) hue-rotate(180deg)',
+  sepia: 'sepia(0.5) brightness(0.96)',
+}
+
+const diagramCss = (theme: ResolvedTheme) =>
+  DIAGRAM_FILTERS[theme] && `img[${DIAGRAM_ATTR}] { filter: ${DIAGRAM_FILTERS[theme]}; }`
+
 /** The stylesheet the app lays over every book. */
 export function bookCss(appearance: Appearance, colors: BookColors): string {
   const { font, fontSize, lineHeight } = appearance
@@ -121,6 +172,8 @@ export function bookCss(appearance: Appearance, colors: BookColors): string {
     background: none !important;
   }
   ${repaint(colors)}
+  ${codeCss(colors.theme)}
+  ${diagramCss(colors.theme)}
   ${fontRule}
   p, li, blockquote, dd {
     line-height: ${lineHeight} !important;
