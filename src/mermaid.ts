@@ -13,7 +13,7 @@ function load() {
       m.initialize({
         startOnLoad: false,
         // Greys on a transparent background: works on every page colour, and
-        // inverts cleanly for the dark theme.
+        // the theme filters in code-blocks.ts adapt it to dark and sepia.
         theme: 'neutral',
         fontSize: FONT_PX,
         securityLevel: 'strict',

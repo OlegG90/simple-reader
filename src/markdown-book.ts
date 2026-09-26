@@ -86,17 +86,18 @@ export async function makeMarkdownBook(source: string, fileName: string, loadIma
       images.set(path, loadImage(path).then(bytes => objectUrl(imageBlob(bytes, path)), () => null))
     return images.get(path)!
   }
-  await Promise.all(
-    Array.from(doc.querySelectorAll('img'), async img => {
+  // Independent of each other: diagram images are blobs, not local files,
+  // and highlighting leaves Mermaid blocks alone.
+  await Promise.all([
+    ...Array.from(doc.querySelectorAll('img'), async img => {
       const src = img.getAttribute('src') ?? ''
       if (!isLocalPath(src)) return
       const url = await imageUrl(decode(src.split(/[?#]/)[0]))
       if (url) img.src = url
     }),
-  )
-
-  await renderDiagrams(doc, renderMermaid, objectUrl)
-  await highlightCode(doc)
+    renderDiagrams(doc, renderMermaid, objectUrl),
+    highlightCode(doc),
+  ])
 
   const blob = new Blob([`<!doctype html>\n${doc.documentElement.outerHTML}`], { type: 'text/html' })
   const url = objectUrl(blob)
