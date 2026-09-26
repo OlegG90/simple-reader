@@ -91,6 +91,8 @@ const TEXT_BLOCKS = 'body, body :is(p, div, li, blockquote, dd, dt, h1, h2, h3, 
 /**
  * In light the book keeps its own colours. Dark and sepia repaint all text,
  * since colours meant for a white page are unreadable or jarring there.
+ * Highlighted code (below) and Markdown's tinted blocks (MARKDOWN_CSS in
+ * markdown-book.ts) are written to outrank these selectors.
  */
 const repaint = ({ theme, text, link }: BookColors) =>
   theme === 'light'

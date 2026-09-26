@@ -9,12 +9,13 @@ describe('renderDiagrams', () => {
   it('replaces mermaid blocks with images of the diagram', async () => {
     const doc = parse('<pre><code class="language-mermaid">flowchart LR\n  A --&gt; B</code></pre>')
     const sources: string[] = []
-    await renderDiagrams(doc, async source => (sources.push(source), '<svg/>'), toUrl)
+    await renderDiagrams(doc, async source => (sources.push(source), { svg: '<svg/>', width: 20 }), toUrl)
     expect(sources).toEqual(['flowchart LR\n  A --> B'])
     expect(doc.querySelector('pre')).toBeNull()
     const img = doc.querySelector('img')!
     expect(img.hasAttribute(DIAGRAM_ATTR)).toBe(true)
     expect(img.getAttribute('src')).toBe('blob:diagram')
+    expect(img.style.width).toBe('20em')
   })
 
   it('keeps a block that fails to render as code, and leaves other code alone', async () => {

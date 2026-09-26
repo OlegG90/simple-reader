@@ -69,7 +69,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - Table of contents built from H1–H3.
 - Code blocks in a monospace font. A block in a named language is syntax-highlighted in the theme's colours (the common languages plus PowerShell); a block without a language, or in an unknown one, stays plain.
 - Code blocks, inline code and quotations sit on a background tinted from the text colour, so they stand out in every theme.
-- ` ```mermaid ` blocks are drawn as diagrams: an image that fits the page like any other. Diagrams are drawn in greys; the dark theme inverts them and sepia warms them. A block that is not valid Mermaid stays as code.
+- ` ```mermaid ` blocks are drawn as diagrams: an image that fits the page like any other. Diagrams use Mermaid's neutral greys unless they set their own colours; the dark theme inverts them, sepia warms them, and their text follows the reader's font size. A block that is not valid Mermaid stays as code.
 - YAML front matter is hidden.
 - `F5` reloads the file manually; there is no automatic file watching.
 - Links to headings stay in the file; web links open in the browser; links to other files are ignored.

@@ -1,4 +1,4 @@
-import { DIAGRAM_ATTR, highlightCode, renderDiagrams, type RenderDiagram } from './code-blocks'
+import { DIAGRAM_ATTR, highlightCode, renderDiagrams } from './code-blocks'
 import { headingsToToc, isLocalPath, renderMarkdown } from './markdown'
 import { renderMermaid } from './mermaid'
 
@@ -18,10 +18,11 @@ const MARKDOWN_CSS = `
     margin: 1em 0;
     padding: 0.5em 1em;
     border-inline-start: 3px solid var(--rule);
-    border-radius: 0 6px 6px 0;
+    border-start-end-radius: 6px;
+    border-end-end-radius: 6px;
   }
   /* Code and quotes stand out on a tinted background. Dark and sepia clear
-     every background ("body *", !important), so these outrank that rule. */
+     every background (see repaint in appearance.ts), so these outrank it. */
   html body :is(pre, blockquote, :not(pre) > code) { background-color: var(--tint) !important; }
   li:has(> input[type="checkbox"]) { list-style: none; }
   li > input[type="checkbox"] { margin-inline: -1.4em 0.4em; }
@@ -63,12 +64,7 @@ const decode = (text: string) => {
  * become the table of contents; local images are loaded through `loadImage`,
  * Mermaid blocks become diagrams and code in a named language is highlighted.
  */
-export async function makeMarkdownBook(
-  source: string,
-  fileName: string,
-  loadImage: LoadImage,
-  renderDiagram: RenderDiagram = renderMermaid,
-) {
+export async function makeMarkdownBook(source: string, fileName: string, loadImage: LoadImage) {
   const { html, headings, title } = renderMarkdown(source)
   const doc = new DOMParser().parseFromString(
     `<!doctype html><html><head><meta charset="utf-8"><style>${MARKDOWN_CSS}</style></head><body>${html}</body></html>`,
@@ -99,7 +95,7 @@ export async function makeMarkdownBook(
     }),
   )
 
-  await renderDiagrams(doc, renderDiagram, objectUrl)
+  await renderDiagrams(doc, renderMermaid, objectUrl)
   await highlightCode(doc)
 
   const blob = new Blob([`<!doctype html>\n${doc.documentElement.outerHTML}`], { type: 'text/html' })

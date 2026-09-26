@@ -7,7 +7,8 @@ describe('standaloneSvg', () => {
     const markup =
       '<svg id="d" width="100%" style="max-width: 300px;" viewBox="-8 -8 300 120">' +
       '<foreignObject><div>A<br>B</div></foreignObject></svg>'
-    const xml = standaloneSvg(markup)
+    const { svg: xml, width } = standaloneSvg(markup)
+    expect(width).toBe(300 / 16)
     const svg = new DOMParser().parseFromString(xml, 'image/svg+xml').documentElement
     expect(svg.querySelector('parsererror')).toBeNull()
     expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg')
@@ -17,7 +18,8 @@ describe('standaloneSvg', () => {
     expect(xml).toContain('<br />')
   })
 
-  it('fails when there is no diagram', () => {
+  it('fails when there is no diagram, or it has no size', () => {
     expect(() => standaloneSvg('<p>oops</p>')).toThrow()
+    expect(() => standaloneSvg('<svg width="100%"></svg>')).toThrow()
   })
 })
