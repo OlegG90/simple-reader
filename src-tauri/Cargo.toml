@@ -1,6 +1,6 @@
 [package]
 name = "simple-reader"
-version = "0.1.1"
+version = "0.2.0"
 description = "A minimal, portable e-book reader"
 authors = ["OlegG90"]
 license = "MIT"
