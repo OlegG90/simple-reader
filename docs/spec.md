@@ -124,7 +124,7 @@ sreader --help | --version
 | `--no-save` | Do not save the reading position or add to the recent list for this window ("just take a look") |
 | `--data-dir <path>` | Use an explicit data location |
 | `--register` / `--unregister` | Add / remove file associations for `.epub`, `.fb2`, `.fbz`, `.md` under `HKCU` (no admin rights) |
-| `--help` / `--version` | Print to the console the exe was launched from |
+| `--help` / `--version` | Print to the console the exe was launched from; `--version` also lists Tauri, the installed WebView2 runtime and the bundled libraries (foliate-js commit, marked, Mermaid, highlight.js), read from the build itself |
 
 `--register` adds Simple Reader to "Open with" and makes it the default only where the user has no default yet; Windows keeps a choice made with "Open with → Always" out of reach of apps. `.fb2.zip` cannot be associated: Windows only looks at the last extension, and taking over `.zip` is not acceptable.
 

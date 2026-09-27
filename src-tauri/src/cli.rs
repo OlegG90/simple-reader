@@ -37,7 +37,7 @@ Options:
   --register           Offer Simple Reader for .epub, .fb2, .fbz and .md files (current user)
   --unregister         Remove what --register added
   --help, -h           Show this help
-  --version, -V        Show the version";
+  --version, -V        Show the version of Simple Reader and what it is built on";
 
 /// Parses command-line arguments (without the program name). Relative file
 /// paths are resolved against `cwd`, which matters when a second launch is
