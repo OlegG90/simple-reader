@@ -366,7 +366,7 @@ pub fn run() {
 fn run_command(command: Command) -> i32 {
     match command {
         Command::Help => report(Ok(()), cli::USAGE),
-        Command::Version => report(Ok(()), &version::text(tauri::webview_version().ok())),
+        Command::Version => report(Ok(()), &version::text(tauri::webview_version().ok().as_deref())),
         Command::Invalid(message) => {
             console::print(&format!("{message}\n\n{}", cli::USAGE));
             2
