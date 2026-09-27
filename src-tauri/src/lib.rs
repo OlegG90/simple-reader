@@ -5,6 +5,7 @@ mod fingerprint;
 mod paths;
 mod register;
 mod store;
+mod version;
 
 use cli::{Command, Launch};
 use serde::Serialize;
@@ -365,7 +366,7 @@ pub fn run() {
 fn run_command(command: Command) -> i32 {
     match command {
         Command::Help => report(Ok(()), cli::USAGE),
-        Command::Version => report(Ok(()), &format!("Simple Reader {}", env!("CARGO_PKG_VERSION"))),
+        Command::Version => report(Ok(()), &version::text(tauri::webview_version().ok().as_deref())),
         Command::Invalid(message) => {
             console::print(&format!("{message}\n\n{}", cli::USAGE));
             2
