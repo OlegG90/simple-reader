@@ -59,6 +59,18 @@ describe('bookCss', () => {
     expect(css).not.toMatch(/:is\([^)]*(code|pre|span)/)
   })
 
+  it('colours highlighted code for the theme, over the repaint', () => {
+    const keyword = (css: string) => css.match(/\.hljs-keyword[^{]*\{ color: (#\w+) !important; \}/)?.[1]
+    expect(keyword(bookCss(DEFAULT_APPEARANCE, light))).toBe('#cf222e')
+    expect(keyword(bookCss(DEFAULT_APPEARANCE, dark))).toBe('#ff7b72')
+  })
+
+  it('adapts diagrams to dark and sepia, and leaves them alone in light', () => {
+    expect(bookCss(DEFAULT_APPEARANCE, dark)).toMatch(/img\[data-sreader-diagram\] \{ filter: invert/)
+    expect(bookCss(DEFAULT_APPEARANCE, { ...light, theme: 'sepia' })).toMatch(/filter: sepia/)
+    expect(bookCss(DEFAULT_APPEARANCE, light)).not.toContain('filter')
+  })
+
   it('keeps the publisher font when asked', () => {
     expect(bookCss({ ...DEFAULT_APPEARANCE, font: 'publisher' }, dark)).not.toContain('font-family')
   })

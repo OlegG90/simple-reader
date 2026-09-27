@@ -37,12 +37,36 @@ and [links to headings](#tables-and-lists) inside the file.
 
 ## Code
 
-Code blocks keep a monospace font and are not highlighted:
+Code blocks use a monospace font; a block in a named language is highlighted:
 
 ```ts
 function greet(name: string) {
   return `Hello, ${name} <3`
 }
+```
+
+A block without a language stays plain:
+
+```
+sreader --help
+```
+
+## Diagrams
+
+A `mermaid` block is drawn as a diagram:
+
+```mermaid
+flowchart LR
+    File["book.md"] --> Reader["Simple Reader"]
+    Reader --> Page{"Paginated?"}
+    Page -- yes --> Columns["Columns"]
+    Page -- no --> Scroll["Scrolled text"]
+```
+
+A block that is not valid Mermaid stays as code:
+
+```mermaid
+this is not a diagram
 ```
 
 ## Images

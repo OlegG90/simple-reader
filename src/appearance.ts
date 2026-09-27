@@ -1,3 +1,5 @@
+import { codeBlocksCss } from './code-blocks'
+
 export const THEMES = ['system', 'light', 'dark', 'sepia'] as const
 export type Theme = (typeof THEMES)[number]
 /** What "system" resolves to, and what the app's CSS knows how to draw. */
@@ -89,6 +91,8 @@ const TEXT_BLOCKS = 'body, body :is(p, div, li, blockquote, dd, dt, h1, h2, h3, 
 /**
  * In light the book keeps its own colours. Dark and sepia repaint all text,
  * since colours meant for a white page are unreadable or jarring there.
+ * Highlighted code (codeBlocksCss) and Markdown's tinted blocks (MARKDOWN_CSS
+ * in markdown-book.ts) are written to outrank these selectors.
  */
 const repaint = ({ theme, text, link }: BookColors) =>
   theme === 'light'
@@ -121,6 +125,7 @@ export function bookCss(appearance: Appearance, colors: BookColors): string {
     background: none !important;
   }
   ${repaint(colors)}
+  ${codeBlocksCss(colors.theme)}
   ${fontRule}
   p, li, blockquote, dd {
     line-height: ${lineHeight} !important;
