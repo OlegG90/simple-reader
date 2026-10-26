@@ -84,6 +84,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - Each file launched from Explorer or the command line gets its own window. `Ctrl+O`, dropping a file and the recent list open the book in the current window.
 - A book that is already open in a window is never opened twice: that window comes forward instead.
 - Settings changed in one window apply to all open windows.
+- The settings clear the recent books list and register the app for its book file types.
 
 ### Start screen
 

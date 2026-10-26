@@ -27,6 +27,15 @@ pub fn register(exe: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Whether the app is registered for its book file types.
+pub fn registered() -> bool {
+    user_classes().is_ok_and(|classes| registered_in(&classes))
+}
+
+fn registered_in(classes: &RegKey) -> bool {
+    classes.open_subkey(PROG_ID).is_ok()
+}
+
 /// The program an extension opens with by default, if any.
 fn default_of(classes: &RegKey, ext: &str) -> Option<String> {
     let value: String = classes.open_subkey(ext).ok()?.get_value("").ok()?;
@@ -139,6 +148,16 @@ mod tests {
             let key = classes.open_subkey(ext).unwrap();
             assert!(key.get_value::<String, _>("").is_err(), "{ext}");
         }
+    }
+
+    #[test]
+    fn registered_tracks_register_and_unregister() {
+        let (_guard, classes) = TestClasses::new("status");
+        assert!(!registered_in(&classes));
+        register_in(&classes, Path::new(EXE), |_| None).unwrap();
+        assert!(registered_in(&classes));
+        unregister_in(&classes).unwrap();
+        assert!(!registered_in(&classes));
     }
 
     #[test]

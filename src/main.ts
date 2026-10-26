@@ -11,7 +11,7 @@ import {
   stepFontSize,
   type ResolvedTheme,
 } from './appearance'
-import { el } from './dom'
+import { el, suppressContextMenu } from './dom'
 import { commandFor, type Command } from './keys'
 import type { Flow } from './layout'
 import { makeMarkdownBook } from './markdown-book'
@@ -138,6 +138,11 @@ async function openCurrentBook(lastLocation?: string) {
       relocate: onRelocate,
       key: onKey,
       pointer: onPointer,
+      pointerDown: () => {
+        if (!settingsOpen()) return false
+        closePanels()
+        return true
+      },
       externalLink: href => void openUrl(href).catch(console.error),
     })
   } catch (e) {
@@ -338,6 +343,7 @@ function openToc() {
 function openSettings() {
   closePanels()
   $('settings').hidden = false
+  void refreshFileTypesStatus()
   $('settings').querySelector<HTMLElement>('button, select, input')?.focus()
 }
 
@@ -350,7 +356,25 @@ function closePanels() {
 // ---- Settings and appearance ------------------------------------------------
 
 const systemDark = matchMedia('(prefers-color-scheme: dark)')
-const settingsPanel = createSettingsPanel($('settings'), settings, changes => void changeSettings(changes))
+let fileTypesRegistered = false
+const settingsPanel = createSettingsPanel(
+  $('settings'),
+  settings,
+  changes => void changeSettings(changes),
+  {
+    clearHistory: () => {
+      void invoke('clear_recent')
+        .then(() => {
+          if (!book) void showStartScreen()
+        })
+        .catch(console.error)
+    },
+    toggleFileTypes: () => {
+      const command = fileTypesRegistered ? 'unregister_file_types' : 'register_file_types'
+      void invoke(command).then(refreshFileTypesStatus, console.error)
+    },
+  },
+)
 
 const resolvedTheme = (): ResolvedTheme =>
   settings.theme === 'system' ? (systemDark.matches ? 'dark' : 'light') : settings.theme
@@ -405,6 +429,16 @@ async function flushSettings() {
   if (Object.keys(changes).length) await invoke('update_settings', { changes }).catch(console.error)
 }
 
+/** Shows whether the app is registered for its book file types. */
+async function refreshFileTypesStatus() {
+  const registered = await invoke<boolean>('file_types_registered').catch(e => {
+    console.error(e)
+    return false
+  })
+  fileTypesRegistered = registered
+  settingsPanel.setFileTypesRegistered(registered)
+}
+
 // ---- Edge controls ----------------------------------------------------------
 
 let hideTopbarTimer: number | undefined
@@ -425,6 +459,16 @@ function onPointer(y: number) {
 document.addEventListener('keydown', onKey)
 document.addEventListener('mousemove', e => onPointer(e.clientY))
 $('scrim').addEventListener('click', closePanels)
+// The settings show the book live, so they open without the scrim;
+// a press anywhere outside still closes them, like the other panels.
+// Bubble phase, so the book sees the press first and can swallow its click.
+document.addEventListener('pointerdown', e => {
+  if (!settingsOpen()) return
+  const target = e.target instanceof Element ? e.target : null
+  if (target?.closest('#settings, #settings-button')) return
+  closePanels()
+})
+suppressContextMenu()
 $('toc-button').addEventListener('click', () => runCommand('toc'))
 $('settings-button').addEventListener('click', () => runCommand('settings'))
 $('open-button').addEventListener('click', () => runCommand('open'))
@@ -446,4 +490,5 @@ appWindow.onCloseRequested(async () => {
 })
 systemDark.addEventListener('change', () => settings.theme === 'system' && restyle())
 
+void refreshFileTypesStatus()
 openCurrentBook()

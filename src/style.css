@@ -365,6 +365,12 @@ button:hover {
   border: 1px solid var(--line);
 }
 
+/* Action buttons (history, file types) read as buttons, not labels */
+#settings .field > button {
+  border: 1px solid var(--line);
+  justify-self: start;
+}
+
 #settings .check {
   display: flex;
   align-items: center;

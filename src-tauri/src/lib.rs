@@ -218,6 +218,30 @@ fn forget_recent(store: State<Store>, key: String) -> Result<(), String> {
     store.update(|s| s.recent.retain(|r| r.fingerprint != key)).map_err(|e| e.to_string())
 }
 
+/// Forgets the recent books list. Reading positions are kept, so reopened books resume.
+#[tauri::command(async)]
+fn clear_recent(store: State<Store>) -> Result<(), String> {
+    store.update(|s| s.recent.clear()).map_err(|e| e.to_string())
+}
+
+/// Registers the app for its book file types (see register::register).
+#[tauri::command(async)]
+fn register_file_types() -> Result<(), String> {
+    std::env::current_exe().and_then(|exe| register::register(&exe)).map_err(|e| e.to_string())
+}
+
+/// Removes the app's file associations again.
+#[tauri::command(async)]
+fn unregister_file_types() -> Result<(), String> {
+    register::unregister().map_err(|e| e.to_string())
+}
+
+/// Whether the app is registered for its book file types.
+#[tauri::command(async)]
+fn file_types_registered() -> bool {
+    register::registered()
+}
+
 /// Ctrl+O: asks for a book and opens it in this window.
 #[tauri::command(async)]
 fn pick_book(window: Window) -> Result<(), String> {
@@ -241,6 +265,11 @@ fn open_or_focus(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
     open_window(app, launch)
 }
 
+/// Blocks the WebView context menu in every frame (the app has no editing),
+/// except in edit fields where the menu stays useful.
+const NO_CONTEXT_MENU_SCRIPT: &str =
+    "document.addEventListener('contextmenu', e => { if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]')) return; e.preventDefault(); });";
+
 fn open_window(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
     static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
     let label = format!("reader-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed));
@@ -252,6 +281,7 @@ fn open_window(app: &AppHandle, launch: Launch) -> tauri::Result<()> {
         .title("Simple Reader")
         .min_inner_size(400.0, 300.0)
         .initialization_script(theme_script(theme.as_ref().and_then(|t| t.as_str())))
+        .initialization_script_for_all_frames(NO_CONTEXT_MENU_SCRIPT)
         .visible(false);
     builder = match &geometry {
         Some(g) if first => builder.inner_size(g.width, g.height).position(g.x, g.y).maximized(g.maximized),
@@ -335,6 +365,10 @@ pub fn run() {
             recent_books,
             open_recent,
             forget_recent,
+            clear_recent,
+            register_file_types,
+            unregister_file_types,
+            file_types_registered,
             pick_book,
         ])
         .on_window_event(|window, event| match event {

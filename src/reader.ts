@@ -1,3 +1,4 @@
+import { suppressContextMenu } from './dom'
 import { PAGE_GAP, columnLayout, type Flow } from './layout'
 import type { TocItem } from './markdown'
 import { pageLabels } from './pages'
@@ -61,6 +62,11 @@ interface BookViewEvents {
   key(event: KeyboardEvent): void
   /** Mouse movement inside the book: the distance from the window top. */
   pointer(y: number): void
+  /**
+   * Presses inside the book, which lives in iframes (the main document never sees them).
+   * True when the press closed a panel, so the click that follows it can be swallowed.
+   */
+  pointerDown(): boolean
   externalLink(href: string): void
 }
 
@@ -117,6 +123,21 @@ export class BookView {
   #lastWheel = 0
   #lineWidth = 0
   #onResize = () => this.#fillWindow()
+  /** A press that closed a panel swallows the click that follows it (like the scrim does). */
+  #justClosedPanel = false
+
+  /** Consumes the flag set by a panel-closing press. */
+  #consumePanelClose() {
+    const closed = this.#justClosedPanel
+    this.#justClosedPanel = false
+    return closed
+  }
+
+  /** Forwards a primary press, remembering whether it closed a panel. */
+  #onPress(e: PointerEvent) {
+    if (e.button !== 0) return
+    this.#justClosedPanel = this.events.pointerDown()
+  }
 
   private constructor(
     host: HTMLElement,
@@ -246,7 +267,11 @@ export class BookView {
     })
     // The page margins lie outside the book's iframes.
     view.addEventListener('wheel', e => this.#onWheel(e), { passive: true })
-    view.addEventListener('click', e => this.#onEdgeClick(e.clientX))
+    view.addEventListener('pointerdown', e => this.#onPress(e))
+    view.addEventListener('click', e => {
+      if (this.#consumePanelClose()) return
+      this.#onEdgeClick(e.clientX)
+    })
     this.#setUpFootnotes()
 
     // A saved location can stop resolving (e.g. after a Markdown edit); start over then.
@@ -311,6 +336,8 @@ export class BookView {
       note.addEventListener('load', ev => {
         const { doc } = (ev as CustomEvent<{ doc: Document }>).detail
         doc.addEventListener('keydown', k => this.events.key(k))
+        doc.addEventListener('pointerdown', () => void this.events.pointerDown())
+        suppressContextMenu(doc)
       })
       // The renderer re-lays the note out (and relocates) whenever it reflows;
       // fit the pop-up to it. CSS max-height caps long notes, which then scroll.
@@ -345,7 +372,10 @@ export class BookView {
     doc.addEventListener('keydown', ev => this.events.key(ev))
     doc.addEventListener('wheel', ev => this.#onWheel(ev), { passive: true })
     doc.addEventListener('mousemove', ev => this.events.pointer(toWindow(ev).y))
+    doc.addEventListener('pointerdown', ev => this.#onPress(ev))
+    suppressContextMenu(doc)
     doc.addEventListener('click', ev => {
+      if (this.#consumePanelClose()) return
       if (ev.defaultPrevented || (ev.target as Element).closest?.('a[href]')) return
       if (doc.getSelection()?.toString()) return
       this.hideFootnote()

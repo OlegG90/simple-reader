@@ -6,6 +6,14 @@ export interface PanelValues extends Appearance {
   savePositions: boolean
 }
 
+/** Buttons in the panel that act instead of changing a value. */
+export interface PanelActions {
+  /** Forgets the recent books list (reading positions are kept). */
+  clearHistory(): void
+  /** Registers or unregisters the app for its book file types. */
+  toggleFileTypes(): void
+}
+
 const THEME_LABELS: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark', sepia: 'Sepia' }
 const fontLabel = (font: Font) => (font === 'publisher' ? 'Publisher default' : font)
 
@@ -19,9 +27,10 @@ function range({ min, max, step }: Range) {
 
 /**
  * Builds the settings controls into `host`. Every change is reported through
- * `onChange` with just the changed values; `show` refreshes the controls.
+ * `onChange` with just the changed values; button presses go to `actions`;
+ * `show` refreshes the controls, `setFileTypesRegistered` the file-type row.
  */
-export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onChange: (changes: Partial<PanelValues>) => void) {
+export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onChange: (changes: Partial<PanelValues>) => void, actions: PanelActions) {
   let current = initial
 
   const themeButtons = THEMES.map(theme =>
@@ -45,6 +54,17 @@ export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onC
   const savePositions = el('input', { type: 'checkbox' })
   savePositions.onchange = () => onChange({ savePositions: savePositions.checked })
 
+  const clearHistory = el('button', {
+    type: 'button',
+    textContent: 'Clear history',
+    onclick: actions.clearHistory,
+  })
+  const fileTypesStatus = el('output')
+  const fileTypesButton = el('button', {
+    type: 'button',
+    onclick: actions.toggleFileTypes,
+  })
+
   host.append(
     el('h2', { textContent: 'Settings' }),
     field('Theme', el('div', { className: 'segmented' }, ...themeButtons)),
@@ -53,6 +73,8 @@ export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onC
     field('Line spacing', lineHeight, lineHeightValue),
     field('Line length', lineLength, lineLengthValue),
     el('label', { className: 'check' }, savePositions, 'Remember reading position'),
+    field('History', clearHistory),
+    field('File types', fileTypesStatus, fileTypesButton),
   )
 
   function show(values: PanelValues) {
@@ -67,6 +89,12 @@ export function createSettingsPanel(host: HTMLElement, initial: PanelValues, onC
     savePositions.checked = values.savePositions
   }
 
+  function setFileTypesRegistered(registered: boolean) {
+    fileTypesStatus.textContent = registered ? 'Registered for book files' : 'Not registered'
+    fileTypesButton.textContent = registered ? 'Unregister' : 'Register'
+  }
+
   show(initial)
-  return { show }
+  setFileTypesRegistered(false)
+  return { show, setFileTypesRegistered }
 }
