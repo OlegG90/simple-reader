@@ -203,6 +203,16 @@ button:hover {
   background: var(--active);
 }
 
+/* Book-dependent topbar buttons are dimmed until a book is open */
+#topbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#topbar button:disabled:hover {
+  background: none;
+}
+
 /* Table of contents */
 #scrim {
   position: fixed;
@@ -284,8 +294,10 @@ button:hover {
   display: none;
 }
 
-/* Settings panel */
-#settings {
+/* Side panels: settings, about, shortcuts */
+#settings,
+#about,
+#shortcuts {
   position: fixed;
   top: 0;
   bottom: 0;
@@ -302,7 +314,9 @@ button:hover {
   accent-color: var(--accent);
 }
 
-#settings h2 {
+#settings h2,
+#about h2,
+#shortcuts h2 {
   margin: 0 0 4px;
   font-size: 16px;
 }
@@ -375,6 +389,22 @@ button:hover {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Shortcut list: keys on the left, explanations take twice the share on the right */
+#shortcuts dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+#shortcuts dt {
+
+#shortcuts dd {
+  margin: 0;
+  color: var(--muted);
 }
 
 /* Footnote pop-up */

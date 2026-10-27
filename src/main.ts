@@ -57,6 +57,7 @@ function readSettings(stored: Record<string, unknown>): Settings {
 
 const SAVE_DELAY_MS = 500
 const TOP_EDGE_PX = 48
+const REPO_URL = 'https://github.com/OlegG90/simple-reader'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const appWindow = getCurrentWindow()
@@ -164,6 +165,7 @@ async function openCurrentBook(lastLocation?: string) {
   highlightToc(book.view.lastLocation?.tocItem?.href)
   $('progress').hidden = false
   updateFlowButton()
+  updateTopbarButtons()
 }
 
 function closeBook() {
@@ -171,11 +173,19 @@ function closeBook() {
   book = null
   tocView = null
   closePanels()
+  updateTopbarButtons()
   $('toc-tree').replaceChildren()
   $('start').hidden = true
   $('error').hidden = true
   $('progress').hidden = true
   topbar.classList.remove('shown')
+}
+
+/** Contents and the flow need an open book; the rest of the topbar works without one. */
+function updateTopbarButtons() {
+  const withoutBook = !book
+  $('toc-button').toggleAttribute('disabled', withoutBook)
+  $('flow-button').toggleAttribute('disabled', withoutBook)
 }
 
 interface RecentBook {
@@ -247,6 +257,8 @@ function highlightToc(href: string | undefined) {
 
 const tocOpen = () => !$('toc').hidden
 const settingsOpen = () => !$('settings').hidden
+const aboutOpen = () => !$('about').hidden
+const shortcutsOpen = () => !$('shortcuts').hidden
 
 /** Commands that still work while a side panel has the keyboard. */
 const PANEL_COMMANDS: Command[] = ['toc', 'settings', 'escape', 'fullscreen', 'cycleTheme', 'fontBigger', 'fontSmaller']
@@ -257,7 +269,7 @@ function panelHasKeyboard(e: KeyboardEvent, command: Command) {
   // Letters pick options in a focused list; only Escape leaves it.
   if (target?.closest('select, input')) return command !== 'escape'
   // Keys pressed in the book (its iframes) still turn pages beside the settings.
-  return !!target?.closest('#toc, #settings') && !PANEL_COMMANDS.includes(command)
+  return !!target?.closest('#toc, #settings, #about, #shortcuts') && !PANEL_COMMANDS.includes(command)
 }
 
 function onKey(e: KeyboardEvent) {
@@ -316,7 +328,7 @@ async function runCommand(command: Command) {
 
 async function handleEscape() {
   if (!$('footnote').hidden) book?.hideFootnote()
-  else if (tocOpen() || settingsOpen()) closePanels()
+  else if (tocOpen() || settingsOpen() || aboutOpen() || shortcutsOpen()) closePanels()
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
 
@@ -339,6 +351,13 @@ function openToc() {
   ;(current ?? $('toc-tree').querySelector<HTMLElement>('[role="treeitem"]'))?.focus()
 }
 
+/** Info panels open without the scrim, like the settings. */
+function openInfoPanel(id: 'about' | 'shortcuts') {
+  closePanels()
+  $(id).hidden = false
+  $(id).querySelector<HTMLElement>('button')?.focus()
+}
+
 /** Settings open without the scrim, so changes show on the book right away. */
 function openSettings() {
   closePanels()
@@ -351,6 +370,8 @@ function closePanels() {
   $('scrim').hidden = true
   $('toc').hidden = true
   $('settings').hidden = true
+  $('about').hidden = true
+  $('shortcuts').hidden = true
 }
 
 // ---- Settings and appearance ------------------------------------------------
@@ -444,7 +465,6 @@ async function refreshFileTypesStatus() {
 let hideTopbarTimer: number | undefined
 
 function onPointer(y: number) {
-  if (!book) return
   if (y < TOP_EDGE_PX) {
     clearTimeout(hideTopbarTimer)
     topbar.classList.add('shown')
@@ -459,18 +479,24 @@ function onPointer(y: number) {
 document.addEventListener('keydown', onKey)
 document.addEventListener('mousemove', e => onPointer(e.clientY))
 $('scrim').addEventListener('click', closePanels)
-// The settings show the book live, so they open without the scrim;
-// a press anywhere outside still closes them, like the other panels.
+/** Panels that open without the scrim (the contents have one, so need no outside check). */
+const scrimlessOpen = () => settingsOpen() || aboutOpen() || shortcutsOpen()
+
+// The book shows through, so the panels open without the scrim;
+// a press anywhere outside still closes them.
 // Bubble phase, so the book sees the press first and can swallow its click.
 document.addEventListener('pointerdown', e => {
-  if (!settingsOpen()) return
+  if (!scrimlessOpen()) return
   const target = e.target instanceof Element ? e.target : null
-  if (target?.closest('#settings, #settings-button')) return
+  if (target?.closest('#settings, #settings-button, #about, #about-button, #shortcuts, #shortcuts-button')) return
   closePanels()
 })
 suppressContextMenu()
 $('toc-button').addEventListener('click', () => runCommand('toc'))
 $('settings-button').addEventListener('click', () => runCommand('settings'))
+$('shortcuts-button').addEventListener('click', () => (shortcutsOpen() ? closePanels() : openInfoPanel('shortcuts')))
+$('about-button').addEventListener('click', () => (aboutOpen() ? closePanels() : openInfoPanel('about')))
+$('github-button').addEventListener('click', () => void openUrl(REPO_URL).catch(console.error))
 $('open-button').addEventListener('click', () => runCommand('open'))
 $('flow-button').addEventListener('click', () => runCommand('toggleFlow'))
 $('fullscreen-button').addEventListener('click', () => runCommand('fullscreen'))
@@ -491,4 +517,9 @@ appWindow.onCloseRequested(async () => {
 systemDark.addEventListener('change', () => settings.theme === 'system' && restyle())
 
 void refreshFileTypesStatus()
+void invoke<string>('app_version')
+  .then(version => {
+    $('about-version').textContent = `v${version}`
+  })
+  .catch(console.error)
 openCurrentBook()

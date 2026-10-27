@@ -242,6 +242,12 @@ fn file_types_registered() -> bool {
     register::registered()
 }
 
+/// The app version (from Cargo.toml), shown in the About panel.
+#[tauri::command]
+fn app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 /// Ctrl+O: asks for a book and opens it in this window.
 #[tauri::command(async)]
 fn pick_book(window: Window) -> Result<(), String> {
@@ -369,6 +375,7 @@ pub fn run() {
             register_file_types,
             unregister_file_types,
             file_types_registered,
+            app_version,
             pick_book,
         ])
         .on_window_event(|window, event| match event {

@@ -85,6 +85,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - A book that is already open in a window is never opened twice: that window comes forward instead.
 - Settings changed in one window apply to all open windows.
 - The settings clear the recent books list and register the app for its book file types.
+- The top bar also opens the shortcut list and an About panel (version, GitHub link).
 
 ### Start screen
 

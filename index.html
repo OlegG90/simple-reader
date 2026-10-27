@@ -23,6 +23,8 @@
       <span class="spacer"></span>
       <button id="flow-button" title="Paginated / scrolled (M)"></button>
       <button id="settings-button" title="Settings (S)">Settings</button>
+      <button id="shortcuts-button" title="Keyboard shortcuts">Shortcuts</button>
+      <button id="about-button" title="About Simple Reader">About</button>
       <button id="fullscreen-button" title="Full screen (F11)">Full screen</button>
     </header>
 
@@ -34,6 +36,32 @@
     </nav>
 
     <aside id="settings" aria-label="Settings" hidden></aside>
+
+    <aside id="shortcuts" aria-label="Keyboard shortcuts" hidden>
+      <h2>Shortcuts</h2>
+      <dl>
+        <dt>← → · PgUp · PgDn · Space</dt><dd>Previous / next page (Shift+Space goes back)</dd>
+        <dt>↑ · ↓</dt><dd>Scroll a line (turn a page in paginated mode)</dd>
+        <dt>Home · End</dt><dd>Start / end of the chapter</dd>
+        <dt>T</dt><dd>Contents</dd>
+        <dt>M</dt><dd>Paginated / scrolled mode</dd>
+        <dt>S · Ctrl+,</dt><dd>Settings</dd>
+        <dt>D</dt><dd>Next theme</dd>
+        <dt>Ctrl+= · Ctrl+−</dt><dd>Bigger / smaller font</dd>
+        <dt>F5</dt><dd>Reload a Markdown book</dd>
+        <dt>Ctrl+O</dt><dd>Open a book</dd>
+        <dt>Ctrl+W</dt><dd>Close the window</dd>
+        <dt>F11</dt><dd>Full screen</dd>
+        <dt>Esc</dt><dd>Close the panel / leave full screen</dd>
+      </dl>
+    </aside>
+
+    <aside id="about" aria-label="About" hidden>
+      <h2>About</h2>
+      <p>Simple Reader <span id="about-version"></span></p>
+      <p class="muted">A minimal reader for EPUB, FB2 and Markdown books.</p>
+      <p><button id="github-button" class="link">GitHub repository</button></p>
+    </aside>
 
     <aside id="footnote" hidden></aside>
 
