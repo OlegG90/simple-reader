@@ -45,6 +45,7 @@ npm test                 # frontend (vitest) and backend unit tests
 npm run build            # this machine's architecture: src-tauri/target/release/sreader.exe
 npm run build:x64        # src-tauri/target/x86_64-pc-windows-msvc/release/sreader.exe
 npm run build:arm64      # src-tauri/target/aarch64-pc-windows-msvc/release/sreader.exe
+npm run clean            # remove build outputs (dist, src-tauri/target)
 ```
 
 For the other architecture, add the Rust target first: `rustup target add x86_64-pc-windows-msvc`
