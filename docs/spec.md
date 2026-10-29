@@ -89,7 +89,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 
 ### Start screen
 
-Launching without a file (`sreader`) shows an empty window with a "Drop a book here / Ctrl+O" hint and up to 10 recent books (title, author, % read). Missing files are shown greyed out and removed when clicked. Recent books appear only here — there is no separate menu.
+Launching without a file (`sreader`) shows an empty window with a "Drop a book here / Ctrl+O" hint and up to 10 recent books (title, author, % read). The top bar shows here too; the buttons that need a book (contents, paginated / scrolled) stay disabled until one is open. Missing files are shown greyed out and removed when clicked. Recent books appear only here — there is no separate menu.
 
 ### Keyboard shortcuts
 

@@ -400,8 +400,6 @@ button:hover {
   font-size: 14px;
 }
 
-#shortcuts dt {
-
 #shortcuts dd {
   margin: 0;
   color: var(--muted);
