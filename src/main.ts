@@ -140,7 +140,7 @@ async function openCurrentBook(lastLocation?: string) {
       key: onKey,
       pointer: onPointer,
       pointerDown: () => {
-        if (!settingsOpen()) return false
+        if (!scrimlessOpen()) return false
         closePanels()
         return true
       },
@@ -164,7 +164,6 @@ async function openCurrentBook(lastLocation?: string) {
   currentTocHref = undefined
   highlightToc(book.view.lastLocation?.tocItem?.href)
   $('progress').hidden = false
-  updateFlowButton()
   updateTopbarButtons()
 }
 
@@ -186,6 +185,7 @@ function updateTopbarButtons() {
   const withoutBook = !book
   $('toc-button').toggleAttribute('disabled', withoutBook)
   $('flow-button').toggleAttribute('disabled', withoutBook)
+  updateFlowButton()
 }
 
 interface RecentBook {
@@ -259,6 +259,8 @@ const tocOpen = () => !$('toc').hidden
 const settingsOpen = () => !$('settings').hidden
 const aboutOpen = () => !$('about').hidden
 const shortcutsOpen = () => !$('shortcuts').hidden
+/** Panels that open without the scrim (the contents have one, so need no outside check). */
+const scrimlessOpen = () => settingsOpen() || aboutOpen() || shortcutsOpen()
 
 /** Commands that still work while a side panel has the keyboard. */
 const PANEL_COMMANDS: Command[] = ['toc', 'settings', 'escape', 'fullscreen', 'cycleTheme', 'fontBigger', 'fontSmaller']
@@ -328,7 +330,7 @@ async function runCommand(command: Command) {
 
 async function handleEscape() {
   if (!$('footnote').hidden) book?.hideFootnote()
-  else if (tocOpen() || settingsOpen() || aboutOpen() || shortcutsOpen()) closePanels()
+  else if (tocOpen() || scrimlessOpen()) closePanels()
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
 
@@ -479,8 +481,6 @@ function onPointer(y: number) {
 document.addEventListener('keydown', onKey)
 document.addEventListener('mousemove', e => onPointer(e.clientY))
 $('scrim').addEventListener('click', closePanels)
-/** Panels that open without the scrim (the contents have one, so need no outside check). */
-const scrimlessOpen = () => settingsOpen() || aboutOpen() || shortcutsOpen()
 
 // The book shows through, so the panels open without the scrim;
 // a press anywhere outside still closes them.
