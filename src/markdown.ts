@@ -1,3 +1,4 @@
+import type { TocItem } from 'reader-core'
 import { Marked } from 'marked'
 
 export interface Heading {
@@ -62,12 +63,6 @@ export function renderMarkdown(source: string): RenderedMarkdown {
 
   const html = marked.parse(stripFrontMatter(source), { async: false })
   return { html, headings, title: headings.find(h => h.level === 1)?.text ?? '' }
-}
-
-export interface TocItem {
-  label: string
-  href?: string
-  subitems?: TocItem[]
 }
 
 /** Nests headings into a tree (H2 under the H1 before it, and so on). */

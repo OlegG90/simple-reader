@@ -6,7 +6,7 @@ fn main() {
 }
 
 /// Writes `LIBRARIES` (name, version) for `--version`: the Tauri crates in
-/// Cargo.toml, the vendored foliate-js and the npm dependencies in
+/// Cargo.toml, foliate-js (vendored in reader-core) and the npm dependencies in
 /// package.json, with versions from the lockfiles, so the list can't drift
 /// from the build. (Watching the lockfiles reruns this script whenever a
 /// dependency changes; that is the price of the versions staying right.)
@@ -28,7 +28,8 @@ fn write_libraries() {
         row(name, version.unwrap_or_else(|| panic!("{name} is not in Cargo.lock")));
     }
 
-    row("foliate-js", &foliate_version(&read("../src/vendor/foliate-js/README.md")));
+    // reader-core (an npm dependency, listed below) carries foliate-js.
+    row("foliate-js", &foliate_version(&read("../node_modules/reader-core/src/vendor/foliate-js/README.md")));
 
     let package: serde_json::Value = serde_json::from_str(&read("../package.json")).expect("parse package.json");
     let npm_lock: serde_json::Value = serde_json::from_str(&read("../package-lock.json")).expect("parse package-lock.json");
@@ -41,7 +42,7 @@ fn write_libraries() {
     fs::write(out, format!("pub const LIBRARIES: &[(&str, &str)] = &[\n{rows}];\n")).expect("write libraries.rs");
 }
 
-/// foliate-js is vendored: its version is the upstream commit named in the
+/// foliate-js is vendored in reader-core: its version is the upstream commit named in the
 /// vendor README ("Commit: <sha> (<date>)"), shortened to "<sha7> (<date>)".
 fn foliate_version(readme: &str) -> String {
     let line = readme.lines().find_map(|line| line.strip_prefix("Commit: ")).expect("the foliate-js vendor README names its commit");

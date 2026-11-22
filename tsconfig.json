@@ -7,6 +7,8 @@
     "strict": true,
     "noEmit": true,
     "allowJs": true,
+    // reader-core ships foliate-js as JavaScript: read its types from there, as from src before.
+    "maxNodeModuleJsDepth": 3,
     "skipLibCheck": true,
     "types": ["vite/client"]
   },

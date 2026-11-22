@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_APPEARANCE } from './appearance'
+import { DEFAULT_APPEARANCE } from 'reader-core'
 import { createSettingsPanel, type PanelValues } from './settings-panel'
 
 const initial: PanelValues = { ...DEFAULT_APPEARANCE, savePositions: true }

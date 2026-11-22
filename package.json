@@ -25,7 +25,8 @@
     "@tauri-apps/plugin-opener": "^2.5.5",
     "highlight.js": "^11.12.0",
     "marked": "^18.0.14",
-    "mermaid": "^12.0.0"
+    "mermaid": "^12.0.0",
+    "reader-core": "git+https://github.com/OlegG90/reader-core.git#v0.1.0"
   },
   "overrides": {
     "lodash-es": "^4.18.1"

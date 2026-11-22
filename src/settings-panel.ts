@@ -1,5 +1,4 @@
-import { FONTS, LINE_HEIGHT, LINE_LENGTH, THEMES, stepFontSize, type Appearance, type Font, type Range, type Theme } from './appearance'
-import { el } from './dom'
+import { FONTS, LINE_HEIGHT, LINE_LENGTH, THEMES, el, stepFontSize, type Appearance, type Font, type Range, type Theme } from 'reader-core'
 
 /** Everything the settings panel edits. */
 export interface PanelValues extends Appearance {
