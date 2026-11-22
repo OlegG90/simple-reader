@@ -137,7 +137,7 @@ async function openCurrentBook(lastLocation?: string) {
     markdownOpen = info.markdown
     const source = await loadBook(info)
     await settingsReady
-    book = await BookView.open($('stage'), $('footnote'), source, {
+    book = await BookView.open($('stage'), source, {
       flow: settings[flowKey()],
       lastLocation: lastLocation ?? info.position?.cfi,
       style: currentBookStyle(),
@@ -336,7 +336,7 @@ async function runCommand(command: Command) {
 }
 
 async function handleEscape() {
-  if (!$('footnote').hidden) book?.hideFootnote()
+  if (book?.footnoteOpen) book.hideFootnote()
   else if (tocOpen() || scrimlessOpen()) closePanels()
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
