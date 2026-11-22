@@ -28,8 +28,19 @@ fn write_libraries() {
         row(name, version.unwrap_or_else(|| panic!("{name} is not in Cargo.lock")));
     }
 
-    // reader-core (an npm dependency, listed below) carries foliate-js.
-    row("foliate-js", &foliate_version(&read("../node_modules/reader-core/src/vendor/foliate-js/README.md")));
+    // reader-core (an npm dependency, listed below) carries foliate-js. Before
+    // `npm install` it isn't there yet; the Rust side still builds (tests,
+    // rust-analyzer) and the version reads "unknown" until it is.
+    let readme = root.join("../node_modules/reader-core/src/vendor/foliate-js/README.md");
+    println!("cargo:rerun-if-changed={}", readme.display());
+    let foliate = match fs::read_to_string(&readme) {
+        Ok(text) => foliate_version(&text),
+        Err(_) => {
+            println!("cargo:warning=reader-core is not installed (run npm install): foliate-js's version is unknown");
+            "unknown".into()
+        }
+    };
+    row("foliate-js", &foliate);
 
     let package: serde_json::Value = serde_json::from_str(&read("../package.json")).expect("parse package.json");
     let npm_lock: serde_json::Value = serde_json::from_str(&read("../package-lock.json")).expect("parse package-lock.json");

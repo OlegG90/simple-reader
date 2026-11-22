@@ -18,6 +18,7 @@ import {
   type Relocation,
   type ResolvedTheme,
 } from 'reader-core'
+import 'reader-core/book-view.css'
 import { createTOCView } from 'reader-core/foliate-js/ui/tree.js'
 import { codeBlocksCss } from './code-blocks'
 import { commandFor, type Command } from './keys'
