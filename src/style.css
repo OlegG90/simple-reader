@@ -1,5 +1,5 @@
 /* Themes: main.ts sets data-theme to the resolved theme ("system" becomes light
-   or dark). The book is drawn with --fg and --link too (see appearance.ts), so
+   or dark). The book is drawn with --fg and --link too (see reader-core's appearance.ts), so
    these variables are the one place a theme's colours are defined. */
 :root {
   color-scheme: light;
@@ -62,17 +62,10 @@ body {
   color: var(--muted);
 }
 
-#stage,
-#stage foliate-view {
+/* The book (reader-core's book-view.css lays out the rest, and the footnote pop-up) */
+#stage {
   position: absolute;
   inset: 0;
-}
-
-/* Page numbers in the bottom margin (paginated mode) */
-#stage foliate-view::part(foot) {
-  color: var(--muted);
-  opacity: 1; /* foliate-js dims the margins too; the muted colour is enough */
-  font-variant-numeric: tabular-nums;
 }
 
 /* Start screen (also shows errors) */
@@ -403,29 +396,6 @@ button:hover {
 #shortcuts dd {
   margin: 0;
   color: var(--muted);
-}
-
-/* Footnote pop-up */
-#footnote {
-  position: fixed;
-  left: 50%;
-  bottom: 32px;
-  z-index: 30;
-  width: min(640px, calc(100vw - 32px));
-  height: 45vh; /* until the note is laid out, then fitted to it */
-  max-height: 45vh;
-  transform: translateX(-50%);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
-#footnote foliate-view {
-  display: block;
-  width: 100%;
-  height: 100%;
 }
 
 /* Progress bar */

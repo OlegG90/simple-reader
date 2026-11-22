@@ -22,7 +22,7 @@ const MARKDOWN_CSS = `
     border-end-end-radius: 6px;
   }
   /* Code and quotes stand out on a tinted background. Dark and sepia clear
-     every background (see repaint in appearance.ts), so these outrank it. */
+     every background (see repaint in reader-core's appearance.ts), so these outrank it. */
   html body :is(pre, blockquote, :not(pre) > code) { background-color: var(--tint) !important; }
   li:has(> input[type="checkbox"]) { list-style: none; }
   li > input[type="checkbox"] { margin-inline: -1.4em 0.4em; }

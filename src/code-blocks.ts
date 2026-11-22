@@ -1,4 +1,4 @@
-import type { ResolvedTheme } from './appearance'
+import type { ResolvedTheme } from 'reader-core'
 
 /** Marks an image rendered from a Mermaid block (its theme filter below applies to it). */
 export const DIAGRAM_ATTR = 'data-sreader-diagram'

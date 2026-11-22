@@ -55,7 +55,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 - Table of contents (`T`), shown on demand.
 - A thin progress bar at the bottom; clicking it jumps to that position.
 - In paginated mode, the bottom margin shows the page within the current chapter under each column, e.g. `5 / 18` (small, muted, always visible). It is recounted when the layout changes; the book-wide position stays the progress bar's %. A Markdown file counts as one chapter; vertical text shows no page numbers.
-- Keyboard, mouse wheel, and clicking the left/right page edges.
+- Keyboard, mouse wheel, and clicking the left/right page edges. On a touch screen a tap on the left or right third turns the page and a tap in the middle shows the controls.
 
 ### Footnotes and links
 
@@ -78,7 +78,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 ## Window
 
 - Standard Windows frame; the title shows the book title.
-- No permanent toolbar. Controls (TOC, settings, progress) appear when the mouse nears an edge or on a hotkey.
+- No permanent toolbar. Controls (TOC, settings, progress) appear when the mouse nears an edge, on a hotkey, or on a tap in the middle of the page.
 - `F11` toggles full screen.
 - Window size and position are remembered.
 - Each file launched from Explorer or the command line gets its own window. `Ctrl+O`, dropping a file and the recent list open the book in the current window.
@@ -126,7 +126,7 @@ sreader --help | --version
 | `--no-save` | Do not save the reading position or add to the recent list for this window ("just take a look") |
 | `--data-dir <path>` | Use an explicit data location |
 | `--register` / `--unregister` | Add / remove file associations for `.epub`, `.fb2`, `.fbz`, `.md` under `HKCU` (no admin rights) |
-| `--help` / `--version` | Print to the console the exe was launched from; `--version` also lists the installed WebView2 runtime and the libraries in the build — the Tauri crates, the foliate-js commit and the npm dependencies (marked, Mermaid, highlight.js, the Tauri JS API) — taken from the manifests and lockfiles, so the list follows the dependencies |
+| `--help` / `--version` | Print to the console the exe was launched from; `--version` also lists the installed WebView2 runtime and the libraries in the build — the Tauri crates, the foliate-js commit (from reader-core) and the npm dependencies (marked, Mermaid, highlight.js, the Tauri JS API, reader-core) — taken from the manifests and lockfiles, so the list follows the dependencies |
 
 `--register` adds Simple Reader to "Open with" and makes it the default only where the user has no default yet; Windows keeps a choice made with "Open with → Always" out of reach of apps. `.fb2.zip` cannot be associated: Windows only looks at the last extension, and taking over `.zip` is not acceptable.
 
@@ -146,7 +146,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 
 - **Shell:** Tauri 2 (Rust) + WebView2.
 - **Frontend:** plain TypeScript, no framework.
-- **Rendering:** [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT) for EPUB and FB2; a Markdown parser for `.md`, with [Mermaid](https://mermaid.js.org) (MIT) for diagrams and [highlight.js](https://highlightjs.org) (BSD-3-Clause) for code. Both load only when a file has a diagram or code in a named language.
+- **Rendering:** the shared [reader-core](https://github.com/OlegG90/reader-core) package (public, MIT), also used by Book Reader: its `BookView` over [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT, vendored there) for EPUB and FB2 (without PDF, MOBI, comics, fixed-layout EPUB and TTS), plus appearance, page layout and touch taps. It is an npm git dependency pinned to a tag; `.npmrc` allows that one git dependency, which npm 12 refuses by default. Markdown (`.md`) has a parser of its own in the app, with [Mermaid](https://mermaid.js.org) (MIT) for diagrams and [highlight.js](https://highlightjs.org) (BSD-3-Clause) for code. Both load only when a file has a diagram or code in a named language.
 - **Plugins:** single-instance, dialog, opener. Command-line arguments are parsed by the app itself.
 - **Build:** Tauri bundling (MSI/NSIS) disabled; only `sreader.exe` is produced. `npm run build` builds it for the local architecture into `src-tauri/target/release/`; `npm run build:x64` / `build:arm64` build for a given architecture into `src-tauri/target/<target>/release/`.
 - **CI:** GitHub Actions builds `sreader.exe` for **ARM64 and x64** on `v*` tags (the tag must match the version in `src-tauri/Cargo.toml`) and attaches both, as `sreader-x64.exe` and `sreader-arm64.exe`, to the GitHub Release. A manual run builds both as an artifact without publishing.

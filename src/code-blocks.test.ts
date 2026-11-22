@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { CODE_ATTR, DIAGRAM_ATTR, highlightCode, renderDiagrams } from './code-blocks'
+import { CODE_ATTR, DIAGRAM_ATTR, codeBlocksCss, highlightCode, renderDiagrams } from './code-blocks'
 
 const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html')
 const toUrl = () => 'blob:diagram'
@@ -49,5 +49,19 @@ describe('highlightCode', () => {
     await highlightCode(doc)
     expect(doc.querySelector(`[${CODE_ATTR}]`)).toBeNull()
     expect(doc.body.innerHTML).toBe(html)
+  })
+})
+
+describe('codeBlocksCss', () => {
+  it('colours highlighted code for the theme', () => {
+    const keyword = (css: string) => css.match(/\.hljs-keyword[^{]*\{ color: (#\w+) !important; \}/)?.[1]
+    expect(keyword(codeBlocksCss('light'))).toBe('#cf222e')
+    expect(keyword(codeBlocksCss('dark'))).toBe('#ff7b72')
+  })
+
+  it('adapts diagrams to dark and sepia, and leaves them alone in light', () => {
+    expect(codeBlocksCss('dark')).toMatch(/img\[data-sreader-diagram\] \{ filter: invert/)
+    expect(codeBlocksCss('sepia')).toMatch(/filter: sepia/)
+    expect(codeBlocksCss('light')).not.toContain('filter')
   })
 })

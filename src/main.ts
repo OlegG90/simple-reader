@@ -2,22 +2,28 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
+  BookView,
   bookCss,
-  lineWidthPx,
+  el,
   isAppearanceKey,
+  lineWidthPx,
   nextTheme,
   oneOf,
   readAppearance,
   stepFontSize,
+  suppressContextMenu,
+  type BookSource,
+  type BookStyle,
+  type Flow,
+  type Relocation,
   type ResolvedTheme,
-} from './appearance'
-import { el, suppressContextMenu } from './dom'
+} from 'reader-core'
+import 'reader-core/book-view.css'
+import { createTOCView } from 'reader-core/foliate-js/ui/tree.js'
+import { codeBlocksCss } from './code-blocks'
 import { commandFor, type Command } from './keys'
-import type { Flow } from './layout'
 import { makeMarkdownBook } from './markdown-book'
-import { BookView, type BookSource, type BookStyle, type Relocation } from './reader'
 import { createSettingsPanel, type PanelValues } from './settings-panel'
-import { createTOCView } from './vendor/foliate-js/ui/tree.js'
 
 interface Position {
   cfi: string
@@ -131,7 +137,7 @@ async function openCurrentBook(lastLocation?: string) {
     markdownOpen = info.markdown
     const source = await loadBook(info)
     await settingsReady
-    book = await BookView.open($('stage'), $('footnote'), source, {
+    book = await BookView.open($('stage'), source, {
       flow: settings[flowKey()],
       lastLocation: lastLocation ?? info.position?.cfi,
       style: currentBookStyle(),
@@ -139,6 +145,7 @@ async function openCurrentBook(lastLocation?: string) {
       relocate: onRelocate,
       key: onKey,
       pointer: onPointer,
+      menu: toggleTopbar,
       pointerDown: () => {
         if (!scrimlessOpen()) return false
         closePanels()
@@ -329,7 +336,7 @@ async function runCommand(command: Command) {
 }
 
 async function handleEscape() {
-  if (!$('footnote').hidden) book?.hideFootnote()
+  if (book?.footnoteOpen) book.hideFootnote()
   else if (tocOpen() || scrimlessOpen()) closePanels()
   else if (await appWindow.isFullscreen()) await appWindow.setFullscreen(false)
 }
@@ -415,7 +422,8 @@ function currentBookStyle(): BookStyle {
     text: root.getPropertyValue('--fg').trim(),
     link: root.getPropertyValue('--link').trim(),
   }
-  return { css: bookCss(settings, colors), lineWidth: lineWidthPx(settings) }
+  // Highlighted code and diagrams follow the theme too (written to outrank bookCss).
+  return { css: bookCss(settings, colors) + codeBlocksCss(colors.theme), lineWidth: lineWidthPx(settings) }
 }
 
 function restyle() {
@@ -465,6 +473,12 @@ async function refreshFileTypesStatus() {
 // ---- Edge controls ----------------------------------------------------------
 
 let hideTopbarTimer: number | undefined
+
+/** A tap in the middle of the page (touch screens) shows or hides the top bar. */
+function toggleTopbar() {
+  clearTimeout(hideTopbarTimer)
+  topbar.classList.toggle('shown')
+}
 
 function onPointer(y: number) {
   if (y < TOP_EDGE_PX) {
