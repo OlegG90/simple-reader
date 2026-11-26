@@ -54,7 +54,7 @@ In the light theme books keep their own colours; dark and sepia repaint all text
 
 - Table of contents (`T`), shown on demand.
 - A thin progress bar at the bottom; clicking it jumps to that position.
-- In paginated mode, the bottom margin shows the page within the current chapter under each column, e.g. `5 / 18` (small, muted, always visible). It is recounted when the layout changes; the book-wide position stays the progress bar's %. A Markdown file counts as one chapter; vertical text shows no page numbers.
+- In paginated mode, the bottom margin shows the page within the current chapter under each column, e.g. `5 / 18` (small, muted, always visible). It is recounted when the layout changes; the book-wide position stays the progress bar's %. A Markdown file counts as one chapter; vertical text shows no page numbers. An FB2 chapter longer than 80k characters is cut into parts (so it opens fast), and each part counts as a chapter here and for `Home` / `End`.
 - Keyboard, mouse wheel, and clicking the left/right page edges. On a touch screen a tap on the left or right third turns the page and a tap in the middle shows the controls.
 
 ### Footnotes and links
@@ -138,7 +138,7 @@ A single process with many windows. Launching `sreader book2.fb2` while the app 
 
 - Stored in one JSON file: settings, reading positions, recent files, window geometry.
 - **Location:** `sreader.json` next to the exe if that folder is writable; otherwise `%APPDATA%\simple-reader\sreader.json`. `--data-dir` overrides both.
-- **Reading position** is saved automatically. A global setting turns saving off; `--no-save` turns it off for one window.
+- **Reading position** is saved automatically. A global setting turns saving off; `--no-save` turns it off for one window. A position saved in an FB2 book before its long chapters were cut into parts (reader-core 0.4.0) still opens at the same place and is saved in the new form once the book opens; a build older than that reads the new form as the wrong section.
 - **Book identity** is a content fingerprint (file size + hash of the start of the file), so the position survives moving or renaming the file. The path is stored separately, for the recent list only. Markdown files are identified by their full path instead, because editing them changes their content.
 - **Markdown images** are read through the backend only when they are image files referenced relative to the `.md` file.
 
